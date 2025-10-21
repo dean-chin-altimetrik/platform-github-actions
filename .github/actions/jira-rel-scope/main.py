@@ -213,24 +213,16 @@ def main():
             if len(r) > comp_idx and (r[comp_idx] or "").strip().lower() == comp.strip().lower():
                 # capture a copy of the old row for reporting
                 old_row = r.copy()
-                # Update the row for the specified columns (leave Order intact)
-                # Columns mapping: 0=Order,1=Component,2=Branch Name,3=Change Request,4=External Dependency
-                if branch:
-                    # ensure list long enough
-                    while len(r) <= 2:
-                        r.append("")
-                    r[2] = branch
-                if change_req:
-                    while len(r) <= 3:
-                        r.append("")
-                    r[3] = change_req
-                if ext_dep:
-                    while len(r) <= 4:
-                        r.append("")
-                    r[4] = ext_dep
-                found = True
-                break
-
+                # Do NOT overwrite existing row — fail with clear outputs so user knows why.
+                msg = (
+                    f"Upsert aborted: Component '{comp}' already exists in table (Order {old_row[0]}). "
+                    "This action is configured not to overwrite existing rows."
+                )
+                write_output("upsert_result", "conflict")
+                write_output("upsert_conflict_row_json", old_row)
+                write_output("error_message", msg)
+                append_summary(f"**ERROR:** {msg}")
+                die(msg)
         if not found:
             # Determine next Order value
             try:
