@@ -160,21 +160,10 @@ def main():
 
     matched_tbl_md = ""
 
-    # Step Summary
-    summary_parts = [
-        f"### Jira Issue: **{args.jira_key}**",
-        f"- Type is REL-SCOPE: **{is_rel_scope}**",
-        f"- Has description: **{has_description}**",
-        f"- Found table: **{has_table}**",
-    ]
-    if has_table:
-        summary_parts.append("\n**Full table (first table in description):**\n")
-        summary_parts.append(full_tbl_md or "_(empty)_")
-    if matched_tbl_md:
-        summary_parts.append("\n**Matched rows:**\n")
-        summary_parts.append(matched_tbl_md or "_(no matches)_")
-    # Delay writing the summary until after upsert logic so we can include
-    # any changes (inserted/updated rows) in the summary.
+    # Collect upsert-specific summary lines here; we'll build the final
+    # summary after upsert processing so the Full table shows the
+    # post-upsert state.
+    upsert_summary = []
 
     # Outputs
     write_output("table_markdown", full_tbl_md)
@@ -252,11 +241,11 @@ def main():
             new_row = [str(new_order), comp, branch, change_req, ext_dep]
             rows.append(new_row)
 
-        # Prepare human-friendly upsert report and append to summary_parts
-        summary_parts.append("\n**Upsert result:**\n")
+        # Prepare human-friendly upsert report and append to upsert_summary
+        upsert_summary.append("\n**Upsert result:**\n")
         if old_row is not None:
             # Updated existing row: show before/after
-            summary_parts.append(f"- Updated Component **{comp}** (Order {old_row[0]}):\n")
+            upsert_summary.append(f"- Updated Component **{comp}** (Order {old_row[0]}):\n")
             # render small markdown table showing before and after
             before_tbl = tabulate([old_row], headers=headers, tablefmt="github")
             after_row = None
@@ -266,17 +255,17 @@ def main():
                     after_row = rr
                     break
             after_tbl = tabulate([after_row], headers=headers, tablefmt="github") if after_row else ""
-            summary_parts.append("**Before:**\n")
-            summary_parts.append(before_tbl)
-            summary_parts.append("**After:**\n")
-            summary_parts.append(after_tbl)
+            upsert_summary.append("**Before:**\n")
+            upsert_summary.append(before_tbl)
+            upsert_summary.append("**After:**\n")
+            upsert_summary.append(after_tbl)
             # write outputs for update
             write_output("upsert_result", "updated")
             write_output("upserted_row_json", after_row)
         else:
             # Added new row: show the inserted row
-            summary_parts.append(f"- Added Component **{comp}** (Order {new_row[0]}):\n")
-            summary_parts.append(tabulate([new_row], headers=headers, tablefmt="github"))
+            upsert_summary.append(f"- Added Component **{comp}** (Order {new_row[0]}):\n")
+            upsert_summary.append(tabulate([new_row], headers=headers, tablefmt="github"))
             # write outputs for add
             write_output("upsert_result", "added")
             write_output("upserted_row_json", new_row)
@@ -396,8 +385,20 @@ def main():
                 except Exception as e:
                     die(f"Exception while updating Jira description: {e}")
 
-    # Also print to stdout for logs
-    # Append the summary now (after upsert processing)
+    # Build the final summary now so the "Full table" reflects post-upsert state
+    summary_parts = [
+        f"### Jira Issue: **{args.jira_key}**",
+        f"- Type is REL-SCOPE: **{is_rel_scope}**",
+        f"- Has description: **{has_description}**",
+        f"- Found table: **{has_table}**",
+    ]
+    if has_table:
+        summary_parts.append("\n**Full table (after upsert):**\n")
+        summary_parts.append(full_tbl_md or "_(empty)_")
+    if upsert_summary:
+        summary_parts.extend(upsert_summary)
+
+    # Append the summary and also print to stdout for logs
     append_summary("\n".join(summary_parts))
     print("\n".join(summary_parts))
 
