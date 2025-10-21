@@ -1,0 +1,45 @@
+name: Dispatch REL-SCOPE check
+on:
+  workflow_dispatch:
+    inputs:
+      jira_key:
+        description: "Jira issue key (e.g., REL-1234)"
+        required: true
+        type: string
+      search_column:
+        description: "Column header to search (optional)"
+        required: false
+        type: string
+      search_value:
+        description: "Value to match in the column (optional)"
+        required: false
+        type: string
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      # Call the composite action (local or from a shared actions repo)
+      - name: Check REL-SCOPE in Jira
+        id: rel
+        uses: ./.github/actions/jira-rel-scope
+        with:
+          jira_key: ${{ inputs.jira_key }}
+          search_column: ${{ inputs.search_column }}
+          search_value: ${{ inputs.search_value }}
+        env:
+          # Provide these as repo/org secrets
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}   # e.g. https://yourorg.atlassian.net
+          JIRA_EMAIL:    ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN:${{ secrets.JIRA_API_TOKEN }}
+
+      - name: Echo outputs (example)
+        run: |
+          echo "is_rel_scope: ${{ steps.rel.outputs.is_rel_scope }}"
+          echo "has_description: ${{ steps.rel.outputs.has_description }}"
+          echo "has_table: ${{ steps.rel.outputs.has_table }}"
+          echo "matched_rows_json: ${{ steps.rel.outputs.matched_rows_json }}"

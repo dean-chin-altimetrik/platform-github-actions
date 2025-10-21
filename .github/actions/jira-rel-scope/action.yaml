@@ -1,0 +1,50 @@
+name: "Jira REL-SCOPE checker"
+description: "Validate Jira key, type=REL-SCOPE, parse ADF description table, optional search by column/value, and print a nice table."
+inputs:
+  jira_key:
+    required: true
+  search_column:
+    required: false
+    default: ""
+  search_value:
+    required: false
+    default: ""
+outputs:
+  is_rel_scope:
+    value: ${{ steps.run.outputs.is_rel_scope }}
+  has_description:
+    value: ${{ steps.run.outputs.has_description }}
+  has_table:
+    value: ${{ steps.run.outputs.has_table }}
+  table_markdown:
+    value: ${{ steps.run.outputs.table_markdown }}
+  matched_rows_json:
+    value: ${{ steps.run.outputs.matched_rows_json }}
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+        cache: 'pip'
+
+    - name: Install deps
+      run: |
+        python -m pip install -U pip
+        pip install -r "$GITHUB_ACTION_PATH/requirements.txt"
+      shell: bash
+
+    - name: Run checker
+      id: run
+      env:
+        JIRA_BASE_URL: ${{ env.JIRA_BASE_URL }}
+        JIRA_EMAIL:    ${{ env.JIRA_EMAIL }}
+        JIRA_API_TOKEN:${{ env.JIRA_API_TOKEN }}
+        GITHUB_OUTPUT: ${{ env.GITHUB_OUTPUT }}
+        GITHUB_STEP_SUMMARY: ${{ env.GITHUB_STEP_SUMMARY }}
+      run: |
+        python "$GITHUB_ACTION_PATH/main.py" \
+          --jira-key "${{ inputs.jira_key }}" \
+          --search-column "${{ inputs.search_column }}" \
+          --search-value "${{ inputs.search_value }}"
+      shell: bash
