@@ -35,7 +35,7 @@ jobs:
           # Provide these as repo/org secrets
           JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}   # e.g. https://yourorg.atlassian.net
           JIRA_EMAIL:    ${{ secrets.JIRA_EMAIL }}
-          JIRA_API_TOKEN:${{ secrets.JIRA_API_TOKEN }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
 
       - name: Echo outputs (example)
         run: |
