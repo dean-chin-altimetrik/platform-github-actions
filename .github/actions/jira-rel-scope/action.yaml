@@ -39,7 +39,7 @@ runs:
       env:
         JIRA_BASE_URL: ${{ env.JIRA_BASE_URL }}
         JIRA_EMAIL:    ${{ env.JIRA_EMAIL }}
-        JIRA_API_TOKEN:${{ env.JIRA_API_TOKEN }}
+        JIRA_API_TOKEN: ${{ env.JIRA_API_TOKEN }}
         GITHUB_OUTPUT: ${{ env.GITHUB_OUTPUT }}
         GITHUB_STEP_SUMMARY: ${{ env.GITHUB_STEP_SUMMARY }}
       run: |
