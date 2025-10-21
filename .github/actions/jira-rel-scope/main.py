@@ -81,7 +81,24 @@ def write_output(k, v):
     with open(path, "a", encoding="utf-8") as f:
         if isinstance(v, (dict, list)):
             v = json.dumps(v, ensure_ascii=False)
-        f.write(f"{k}={v}\n")
+        # If value contains a newline, use the GitHub Actions multiline value
+        # syntax to avoid the runner rejecting the output (it expects a specific
+        # heredoc format when values include newlines).
+        if isinstance(v, str) and "\n" in v:
+            # Choose a delimiter that's unlikely to appear in the value.
+            delim = "EOF"
+            # If EOF appears in the value, append a random numeric suffix.
+            if delim in v:
+                import time
+                delim = f"EOF_{int(time.time())}"
+            f.write(f"{k}<<{delim}\n")
+            f.write(v)
+            # Ensure the final line break before delimiter
+            if not v.endswith("\n"):
+                f.write("\n")
+            f.write(f"{delim}\n")
+        else:
+            f.write(f"{k}={v}\n")
 
 def append_summary(md):
     path = os.environ.get("GITHUB_STEP_SUMMARY")
