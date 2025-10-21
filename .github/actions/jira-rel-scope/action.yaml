@@ -20,6 +20,8 @@ outputs:
     value: ${{ steps.run.outputs.table_markdown }}
   matched_rows_json:
     value: ${{ steps.run.outputs.matched_rows_json }}
+  error_message:
+    value: ${{ steps.run.outputs.error_message }}
 runs:
   using: "composite"
   steps:

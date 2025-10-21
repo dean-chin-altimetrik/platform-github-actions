@@ -4,7 +4,19 @@ import requests
 from tabulate import tabulate
 
 def die(msg, status=1):
+    # Surface the error in three places:
+    # 1) stderr (for logs),
+    # 2) GITHUB_OUTPUT as `error_message` so workflows can read it as an output,
+    # 3) step summary for quick visibility in the job UI.
     print(f"ERROR: {msg}", file=sys.stderr)
+    try:
+        write_output("error_message", str(msg))
+    except Exception:
+        pass
+    try:
+        append_summary(f"**ERROR:** {msg}")
+    except Exception:
+        pass
     sys.exit(status)
 
 def jira_get_issue(base, email, token, key):
