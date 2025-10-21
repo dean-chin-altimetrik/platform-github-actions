@@ -253,12 +253,104 @@ def main():
         write_output("table_markdown", full_tbl_md)
         write_output("matched_rows_json", rows)
 
+        # Prepare ADF table node for update
+        def make_text_node(s):
+            return {"type": "text", "text": s}
+
+        def make_table_header_cell(text):
+            return {"type": "tableHeader", "content": [{"type": "text", "text": text}]}
+
+        def make_table_cell(text):
+            return {"type": "tableCell", "content": [{"type": "text", "text": text}]}
+
+        def build_adf_table(headers_list, rows_list):
+            # header row
+            header_row = {"type": "tableRow", "content": [make_table_header_cell(h) for h in headers_list]}
+            data_rows = []
+            for r in rows_list:
+                cells = [make_table_cell(c) for c in r]
+                data_rows.append({"type": "tableRow", "content": cells})
+            return {"type": "table", "content": [header_row] + data_rows}
+
+        new_table_node = build_adf_table(headers, rows)
+
+        # Function to replace first table node in ADF description (in-place) or append if not found
+        def replace_or_append_first_table(adf_desc, new_table):
+            # If no description or non-dict, create a doc wrapper
+            if not adf_desc or not isinstance(adf_desc, dict):
+                return {"type": "doc", "version": 1, "content": [new_table]}, True
+
+            replaced = False
+
+            def walk(node):
+                nonlocal replaced
+                if isinstance(node, dict):
+                    if node.get("type") == "table" and not replaced:
+                        # replace fields in-place
+                        node.clear()
+                        node.update(new_table)
+                        replaced = True
+                        return
+                    for k, v in node.items():
+                        walk(v)
+                elif isinstance(node, list):
+                    for i, item in enumerate(node):
+                        if isinstance(item, dict) and item.get("type") == "table" and not replaced:
+                            node[i] = new_table
+                            replaced = True
+                            return
+                        else:
+                            walk(item)
+
+            # operate on a copy to avoid mutating original unexpectedly
+            desc_copy = adf_desc
+            walk(desc_copy)
+            if not replaced:
+                # try to append to top-level content if present
+                if isinstance(desc_copy, dict) and "content" in desc_copy and isinstance(desc_copy["content"], list):
+                    desc_copy["content"].append(new_table)
+                    replaced = True
+                else:
+                    # fallback: create new doc containing original and table
+                    desc_copy = {"type": "doc", "version": 1, "content": [adf_desc, new_table]}
+                    replaced = True
+            return desc_copy, replaced
+
+        # Replace or append the table in the original description
+        new_desc, did_replace = replace_or_append_first_table(desc, new_table_node)
+
+        # If we modified the description, push update to Jira
+        if did_replace:
+            # Respect local testing toggle — set SKIP_JIRA_UPDATE=1 to avoid making network calls
+            if os.getenv("SKIP_JIRA_UPDATE"):
+                append_summary("(SKIP_JIRA_UPDATE set) Prepared new description but did not call Jira API.")
+                write_output("error_message", "SKIP_JIRA_UPDATE: new description prepared but not applied")
+            else:
+                # perform Jira update
+                try:
+                    url = f"{base}/rest/api/3/issue/{args.jira_key}"
+                    payload = {"fields": {"description": new_desc}}
+                    headers_req = {"Accept": "application/json", "Content-Type": "application/json"}
+                    r = requests.put(url, json=payload, auth=(email, token), headers=headers_req)
+                    if r.status_code >= 300:
+                        die(f"Failed to update Jira issue description: {r.status_code}: {r.text[:1000]}")
+                    # success
+                    write_output("error_message", "")
+                    append_summary("Description updated in Jira")
+                except Exception as e:
+                    die(f"Exception while updating Jira description: {e}")
+
     # Also print to stdout for logs
     print("\n".join(summary_parts))
 
     # Hard validations you care about (non-zero exit on failure)
     if not is_rel_scope:
         die(f"Issue {args.jira_key} is not of type REL-SCOPE")
+    # If an upsert was requested we already created/prepared the table and
+    # updated (or prepared to update) the description. In that case avoid
+    # failing on missing description/table so the upsert flow can succeed.
+    if upsert_raw:
+        return
     if not has_description:
         die(f"Issue {args.jira_key} has no description")
     if not has_table:
