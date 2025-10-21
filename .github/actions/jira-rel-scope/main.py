@@ -173,7 +173,8 @@ def main():
     if matched_tbl_md:
         summary_parts.append("\n**Matched rows:**\n")
         summary_parts.append(matched_tbl_md or "_(no matches)_")
-    append_summary("\n".join(summary_parts))
+    # Delay writing the summary until after upsert logic so we can include
+    # any changes (inserted/updated rows) in the summary.
 
     # Outputs
     write_output("table_markdown", full_tbl_md)
@@ -218,8 +219,11 @@ def main():
         # Case-insensitive search for Component in existing rows (Component is column index 1)
         comp_idx = 1
         found = False
+        old_row = None
         for r in rows:
             if len(r) > comp_idx and (r[comp_idx] or "").strip().lower() == comp.strip().lower():
+                # capture a copy of the old row for reporting
+                old_row = r.copy()
                 # Update the row for the specified columns (leave Order intact)
                 # Columns mapping: 0=Order,1=Component,2=Branch Name,3=Change Request,4=External Dependency
                 if branch:
@@ -248,7 +252,36 @@ def main():
             new_row = [str(new_order), comp, branch, change_req, ext_dep]
             rows.append(new_row)
 
-        # Re-render the table markdown and write as output
+        # Prepare human-friendly upsert report and append to summary_parts
+        summary_parts.append("\n**Upsert result:**\n")
+        if old_row is not None:
+            # Updated existing row: show before/after
+            summary_parts.append(f"- Updated Component **{comp}** (Order {old_row[0]}):\n")
+            # render small markdown table showing before and after
+            before_tbl = tabulate([old_row], headers=headers, tablefmt="github")
+            after_row = None
+            # find the updated row (match by order)
+            for rr in rows:
+                if rr and rr[0] == old_row[0]:
+                    after_row = rr
+                    break
+            after_tbl = tabulate([after_row], headers=headers, tablefmt="github") if after_row else ""
+            summary_parts.append("**Before:**\n")
+            summary_parts.append(before_tbl)
+            summary_parts.append("**After:**\n")
+            summary_parts.append(after_tbl)
+            # write outputs for update
+            write_output("upsert_result", "updated")
+            write_output("upserted_row_json", after_row)
+        else:
+            # Added new row: show the inserted row
+            summary_parts.append(f"- Added Component **{comp}** (Order {new_row[0]}):\n")
+            summary_parts.append(tabulate([new_row], headers=headers, tablefmt="github"))
+            # write outputs for add
+            write_output("upsert_result", "added")
+            write_output("upserted_row_json", new_row)
+
+    # Re-render the table markdown and write as output
         full_tbl_md = tabulate(rows, headers=headers, tablefmt="github")
         write_output("table_markdown", full_tbl_md)
         write_output("matched_rows_json", rows)
@@ -364,6 +397,8 @@ def main():
                     die(f"Exception while updating Jira description: {e}")
 
     # Also print to stdout for logs
+    # Append the summary now (after upsert processing)
+    append_summary("\n".join(summary_parts))
     print("\n".join(summary_parts))
 
     # Hard validations you care about (non-zero exit on failure)

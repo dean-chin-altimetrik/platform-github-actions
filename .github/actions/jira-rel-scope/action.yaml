@@ -23,6 +23,10 @@ outputs:
     value: ${{ steps.run.outputs.matched_rows_json }}
   error_message:
     value: ${{ steps.run.outputs.error_message }}
+  upsert_result:
+    value: ${{ steps.run.outputs.upsert_result }}
+  upserted_row_json:
+    value: ${{ steps.run.outputs.upserted_row_json }}
 runs:
   using: "composite"
   steps:

@@ -1,4 +1,4 @@
-name: Dispatch REL-SCOPE check
+name: REL-SCOPE check
 on:
   workflow_dispatch:
     inputs:
