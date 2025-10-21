@@ -6,7 +6,8 @@ inputs:
   search_column:
     required: false
     default: ""
-  search_value:
+  upsert_row:
+    description: "Comma-separated Component, Branch Name, Change Request, External Dependency to add/update (last two optional)"
     required: false
     default: ""
 outputs:
@@ -47,6 +48,5 @@ runs:
       run: |
         python "$GITHUB_ACTION_PATH/main.py" \
           --jira-key "${{ inputs.jira_key }}" \
-          --search-column "${{ inputs.search_column }}" \
-          --search-value "${{ inputs.search_value }}"
+          --upsert-row "${{ inputs.upsert_row }}"
       shell: bash

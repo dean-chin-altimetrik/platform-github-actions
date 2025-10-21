@@ -122,8 +122,8 @@ def append_summary(md):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--jira-key", required=True)
-    ap.add_argument("--search-column", default="")
-    ap.add_argument("--search-value", default="")
+    # search_column/search_value removed; upsert_row drives component matching
+    ap.add_argument("--upsert-row", default="", help="Comma-separated Component, Branch Name, Change Request, External Dependency")
     args = ap.parse_args()
 
     base = os.getenv("JIRA_BASE_URL")
@@ -152,13 +152,6 @@ def main():
     write_output("has_table", str(has_table).lower())
 
     matched_rows = rows
-    if args.search_column and args.search_value and has_table:
-        # case-insensitive column match
-        try:
-            idx = [h.lower().strip() for h in headers].index(args.search_column.lower().strip())
-            matched_rows = [r for r in rows if args.search_value.lower() in (r[idx] or "").lower()]
-        except ValueError:
-            matched_rows = []  # column not found
 
     # Render tables (full + matched)
     full_tbl_md = ""
@@ -166,8 +159,6 @@ def main():
         full_tbl_md = tabulate(rows, headers=headers, tablefmt="github")
 
     matched_tbl_md = ""
-    if args.search_column and args.search_value and has_table:
-        matched_tbl_md = tabulate(matched_rows, headers=headers, tablefmt="github")
 
     # Step Summary
     summary_parts = [
@@ -187,6 +178,80 @@ def main():
     # Outputs
     write_output("table_markdown", full_tbl_md)
     write_output("matched_rows_json", matched_rows)
+
+    # Upsert logic: if requested, add or update a row in the table and push back
+    # (Note: this action currently only writes outputs; updating Jira would require API write permissions.)
+    upsert_raw = args.upsert_row.strip()
+    if upsert_raw:
+        # Expected headers
+        expected_headers = ["Order", "Component", "Branch Name", "Change Request", "External Dependency"]
+
+        # If no table exists, create one with expected headers
+        if not has_table:
+            headers = expected_headers.copy()
+            rows = []
+            has_table = True
+
+        # Validate headers exactly (case-insensitive comparison of normalized names)
+        norm_hdrs = [h.strip().lower() for h in headers]
+        norm_expected = [h.strip().lower() for h in expected_headers]
+        if norm_hdrs != norm_expected:
+            # Fail and provide expected header information
+            msg = (
+                "Table headers do not match expected schema. Expected headers: " +
+                ", ".join(expected_headers)
+            )
+            write_output("error_message", msg)
+            append_summary(f"**ERROR:** {msg}")
+            die(msg)
+
+        # Parse upsert values: Component, Branch Name, Change Request, External Dependency
+        parts = [p.strip() for p in upsert_raw.split(",")]
+        if len(parts) < 1:
+            die("upsert_row must contain at least the Component value")
+
+        comp = parts[0]
+        branch = parts[1] if len(parts) > 1 else ""
+        change_req = parts[2] if len(parts) > 2 else ""
+        ext_dep = parts[3] if len(parts) > 3 else ""
+
+        # Case-insensitive search for Component in existing rows (Component is column index 1)
+        comp_idx = 1
+        found = False
+        for r in rows:
+            if len(r) > comp_idx and (r[comp_idx] or "").strip().lower() == comp.strip().lower():
+                # Update the row for the specified columns (leave Order intact)
+                # Columns mapping: 0=Order,1=Component,2=Branch Name,3=Change Request,4=External Dependency
+                if branch:
+                    # ensure list long enough
+                    while len(r) <= 2:
+                        r.append("")
+                    r[2] = branch
+                if change_req:
+                    while len(r) <= 3:
+                        r.append("")
+                    r[3] = change_req
+                if ext_dep:
+                    while len(r) <= 4:
+                        r.append("")
+                    r[4] = ext_dep
+                found = True
+                break
+
+        if not found:
+            # Determine next Order value
+            try:
+                max_order = max((int(r[0]) for r in rows if r and r[0] != ""), default=-1)
+            except Exception:
+                max_order = len(rows) - 1
+            new_order = max_order + 1 if max_order >= 0 else 0
+            new_row = [str(new_order), comp, branch, change_req, ext_dep]
+            rows.append(new_row)
+
+        # Re-render the table markdown and write as output
+        full_tbl_md = tabulate(rows, headers=headers, tablefmt="github")
+        write_output("table_markdown", full_tbl_md)
+        write_output("matched_rows_json", rows)
 
     # Also print to stdout for logs
     print("\n".join(summary_parts))
