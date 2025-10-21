@@ -257,11 +257,16 @@ def main():
         def make_text_node(s):
             return {"type": "text", "text": s}
 
+        def make_paragraph(text):
+            return {"type": "paragraph", "content": [{"type": "text", "text": text}]}
+
         def make_table_header_cell(text):
-            return {"type": "tableHeader", "content": [{"type": "text", "text": text}]}
+            # tableHeader expects content of paragraph nodes
+            return {"type": "tableHeader", "content": [make_paragraph(text)]}
 
         def make_table_cell(text):
-            return {"type": "tableCell", "content": [{"type": "text", "text": text}]}
+            # tableCell expects content of paragraph nodes
+            return {"type": "tableCell", "content": [make_paragraph(text)]}
 
         def build_adf_table(headers_list, rows_list):
             # header row
@@ -324,12 +329,30 @@ def main():
             # Respect local testing toggle — set SKIP_JIRA_UPDATE=1 to avoid making network calls
             if os.getenv("SKIP_JIRA_UPDATE"):
                 append_summary("(SKIP_JIRA_UPDATE set) Prepared new description but did not call Jira API.")
+                # Prepare a stable ADF doc to show for debugging
+                if isinstance(new_desc, dict) and new_desc.get("type") == "doc":
+                    final_desc = new_desc
+                else:
+                    final_desc = {"type": "doc", "version": 1, "content": [new_desc]}
+                # Add trimmed JSON payload to summary for debugging
+                try:
+                    preview = json.dumps(final_desc, ensure_ascii=False)
+                    preview_short = preview if len(preview) < 2000 else preview[:1997] + "..."
+                    append_summary("Prepared payload (truncated):")
+                    append_summary(preview_short)
+                except Exception:
+                    pass
                 write_output("error_message", "SKIP_JIRA_UPDATE: new description prepared but not applied")
             else:
                 # perform Jira update
                 try:
+                    # Ensure we send a valid ADF doc object as the description
+                    if isinstance(new_desc, dict) and new_desc.get("type") == "doc":
+                        final_desc = new_desc
+                    else:
+                        final_desc = {"type": "doc", "version": 1, "content": [new_desc]}
                     url = f"{base}/rest/api/3/issue/{args.jira_key}"
-                    payload = {"fields": {"description": new_desc}}
+                    payload = {"fields": {"description": final_desc}}
                     headers_req = {"Accept": "application/json", "Content-Type": "application/json"}
                     r = requests.put(url, json=payload, auth=(email, token), headers=headers_req)
                     if r.status_code >= 300:
