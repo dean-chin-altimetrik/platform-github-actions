@@ -6,12 +6,8 @@ on:
         description: "Jira issue key (e.g., REL-1234)"
         required: true
         type: string
-      search_column:
-        description: "Column header to search (optional)"
-        required: false
-        type: string
-      search_value:
-        description: "Value to match in the column (optional)"
+      upsert_row:
+        description: "Comma-separated Component, Branch Name, Change Request, External Dependency to add/update (last two optional)"
         required: false
         type: string
 
@@ -29,8 +25,7 @@ jobs:
         uses: ./.github/actions/jira-rel-scope
         with:
           jira_key: ${{ inputs.jira_key }}
-          search_column: ${{ inputs.search_column }}
-          search_value: ${{ inputs.search_value }}
+          upsert_row: ${{ inputs.upsert_row }}
         env:
           # Provide these as repo/org secrets
           JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}   # e.g. https://yourorg.atlassian.net
