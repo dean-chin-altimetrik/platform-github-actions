@@ -129,12 +129,12 @@ def main():
     args = ap.parse_args()
 
     base = os.getenv("JIRA_BASE_URL")
-    email = os.getenv("JIRA_EMAIL")
+    email = os.getenv("JIRA_EMAIL") or "dean.chin@altimetrik.com"
     token = os.getenv("JIRA_API_TOKEN")
+    # JIRA_EMAIL is optional and defaults to dean.chin@altimetrik.com
     missing = [
         name for name, val in (
             ("JIRA_BASE_URL", base),
-            ("JIRA_EMAIL", email),
             ("JIRA_API_TOKEN", token),
         ) if not val
     ]
