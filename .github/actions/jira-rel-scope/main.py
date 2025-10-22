@@ -131,8 +131,18 @@ def main():
     base = os.getenv("JIRA_BASE_URL")
     email = os.getenv("JIRA_EMAIL")
     token = os.getenv("JIRA_API_TOKEN")
-    if not all([base, email, token]):
-        die("Missing JIRA_BASE_URL, JIRA_EMAIL, or JIRA_API_TOKEN in env.")
+    missing = [
+        name for name, val in (
+            ("JIRA_BASE_URL", base),
+            ("JIRA_EMAIL", email),
+            ("JIRA_API_TOKEN", token),
+        ) if not val
+    ]
+    if missing:
+        die(
+            "Missing JIRA credentials in environment: " + ", ".join(missing) +
+            ".\nProvide these as repository or organization secrets and pass them to the workflow (example in README)."
+        )
 
     issue = jira_get_issue(base, email, token, args.jira_key)
     fields = issue.get("fields", {})
