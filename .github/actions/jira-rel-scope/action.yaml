@@ -6,10 +6,12 @@ inputs:
   search_column:
     required: false
     default: ""
-  upsert_row:
-    description: "Comma-separated Component, Branch Name, Change Request, External Dependency to add/update (last two optional)"
-    required: false
-    default: ""
+  component:
+    description: "Component (required)"
+    required: true
+  branch_name:
+    description: "Branch Name (required)"
+    required: true
 outputs:
   is_rel_scope:
     value: ${{ steps.run.outputs.is_rel_scope }}
@@ -52,5 +54,6 @@ runs:
       run: |
         python "$GITHUB_ACTION_PATH/main.py" \
           --jira-key "${{ inputs.jira_key }}" \
-          --upsert-row "${{ inputs.upsert_row }}"
+          --component "${{ inputs.component }}" \
+          --branch-name "${{ inputs.branch_name }}"
       shell: bash

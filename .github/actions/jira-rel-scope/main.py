@@ -122,8 +122,10 @@ def append_summary(md):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--jira-key", required=True)
-    # search_column/search_value removed; upsert_row drives component matching
-    ap.add_argument("--upsert-row", default="", help="Comma-separated Component, Branch Name, Change Request, External Dependency")
+    # search_column/search_value removed; upsert_row previously drove component matching.
+    # New individual parameters (preferred).
+    ap.add_argument("--component", default="", help="Component name to add/update")
+    ap.add_argument("--branch-name", default="", help="Branch name for the component")
     args = ap.parse_args()
 
     base = os.getenv("JIRA_BASE_URL")
@@ -171,7 +173,13 @@ def main():
 
     # Upsert logic: if requested, add or update a row in the table and push back
     # (Note: this action currently only writes outputs; updating Jira would require API write permissions.)
-    upsert_raw = args.upsert_row.strip()
+    # Build upsert CSV from the provided component and branch-name (other fields empty).
+    upsert_raw = ""
+    if args.component or args.branch_name:
+        comp = args.component.strip()
+        branch = args.branch_name.strip()
+        # CSV format expected by the upsert logic: Component, Branch Name, Change Request, External Dependency
+        upsert_raw = ",".join([comp, branch, "", ""]).strip()
     if upsert_raw:
         # Expected headers
         expected_headers = ["Order", "Component", "Branch Name", "Change Request", "External Dependency"]
@@ -198,7 +206,7 @@ def main():
         # Parse upsert values: Component, Branch Name, Change Request, External Dependency
         parts = [p.strip() for p in upsert_raw.split(",")]
         if len(parts) < 1:
-            die("upsert_row must contain at least the Component value")
+            die("Component value is required (provide --component and --branch-name inputs)")
 
         comp = parts[0]
         branch = parts[1] if len(parts) > 1 else ""

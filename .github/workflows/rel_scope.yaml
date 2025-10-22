@@ -6,9 +6,13 @@ on:
         description: "Jira issue key (e.g., REL-1234)"
         required: true
         type: string
-      upsert_row:
-        description: "Comma-separated Component, Branch Name, Change Request, External Dependency to add/update (last two optional)"
-        required: false
+      component:
+        description: "Component"
+        required: true
+        type: string
+      branch_name:
+        description: "Branch Name"
+        required: true
         type: string
 
 jobs:
@@ -25,7 +29,8 @@ jobs:
         uses: ./.github/actions/jira-rel-scope
         with:
           jira_key: ${{ inputs.jira_key }}
-          upsert_row: ${{ inputs.upsert_row }}
+          component: ${{ inputs.component }}
+          branch_name: ${{ inputs.branch_name }}
         env:
           # Provide these as repo/org secrets
           JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}   # e.g. https://yourorg.atlassian.net
