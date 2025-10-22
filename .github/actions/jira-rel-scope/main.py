@@ -21,7 +21,8 @@ def die(msg, status=1):
 
 def jira_get_issue(base, email, token, key):
     url = f"{base}/rest/api/3/issue/{key}"
-    params = {"fields": "issuetype,description"}
+    # Also request `summary` so we can include the issue title in the check summary
+    params = {"fields": "issuetype,description,summary"}
     r = requests.get(url, params=params, auth=(email, token), headers={"Accept":"application/json"})
     if r.status_code == 404:
         die(f"Jira issue not found: {key}")
@@ -137,6 +138,7 @@ def main():
     issue = jira_get_issue(base, email, token, args.jira_key)
     fields = issue.get("fields", {})
     issuetype = (fields.get("issuetype") or {}).get("name", "")
+    issue_summary = (fields.get("summary") or "").strip()
     is_rel_scope = (issuetype == "REL-SCOPE")
     write_output("is_rel_scope", str(is_rel_scope).lower())
 
@@ -387,7 +389,7 @@ def main():
 
     # Build the final summary now so the "Full table" reflects post-upsert state
     summary_parts = [
-        f"### Jira Issue: **{args.jira_key}**",
+        f"### Jira Issue: **{args.jira_key}**{(' — ' + issue_summary) if issue_summary else ''}",
         f"- Type is REL-SCOPE: **{is_rel_scope}**",
         f"- Has description: **{has_description}**",
         f"- Found table: **{has_table}**",
