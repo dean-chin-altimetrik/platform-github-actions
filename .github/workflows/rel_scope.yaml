@@ -21,12 +21,11 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
-
-      # Call the composite action (local or from a shared actions repo)
+      # Call the composite action from this repository so the runner fetches it
+      # into GITHUB_ACTION_PATH (callers don't need to checkout workspace code).
       - name: Check REL-SCOPE in Jira
         id: rel
-        uses: ./.github/actions/jira-rel-scope
+        uses: dean-chin-altimetrik/platform-github-actions/.github/actions/jira-rel-scope@main
         with:
           jira_key: ${{ inputs.jira_key }}
           component: ${{ inputs.component }}
