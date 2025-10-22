@@ -1,14 +1,29 @@
 name: "Jira REL-SCOPE checker"
-description: "Validate Jira key, type=REL-SCOPE, parse ADF description table, optional search by column/value, and print a nice table."
+description: "Validate Jira key, type=REL-SCOPE, parse ADF description table, optional search by column/value, and print a nice table. Supports both upsert and lookup commands."
 inputs:
-  jira_key:
+  command:
+    description: "Command to execute: 'upsert' to add/update component in specific ticket, 'lookup' to search for component in project"
     required: true
   component:
-    description: "Component (required)"
+    description: "Component name to add/update or search for"
     required: true
+  # Upsert mode parameters
+  jira_key:
+    description: "Specific Jira key to process (required for upsert command)"
+    required: false
   branch_name:
-    description: "Branch Name (required)"
-    required: true
+    description: "Branch Name (required for upsert command)"
+    required: false
+  # Lookup mode parameters
+  project:
+    description: "Jira project key to search in (required for lookup command)"
+    required: false
+  state:
+    description: "Jira state/status to filter by (required for lookup command)"
+    required: false
+  release_branch:
+    description: "Release branch to search for in component table (required for lookup command)"
+    required: false
 outputs:
   is_rel_scope:
     value: ${{ steps.run.outputs.is_rel_scope }}
@@ -26,6 +41,17 @@ outputs:
     value: ${{ steps.run.outputs.upsert_result }}
   upserted_row_json:
     value: ${{ steps.run.outputs.upserted_row_json }}
+  # Lookup mode outputs
+  found_ticket_key:
+    value: ${{ steps.run.outputs.found_ticket_key }}
+  component_found:
+    value: ${{ steps.run.outputs.component_found }}
+  branch_matches:
+    value: ${{ steps.run.outputs.branch_matches }}
+  matching_row_json:
+    value: ${{ steps.run.outputs.matching_row_json }}
+  lookup_result:
+    value: ${{ steps.run.outputs.lookup_result }}
 runs:
   using: "composite"
   steps:
@@ -43,7 +69,11 @@ runs:
       id: run
       run: |
         python "$GITHUB_ACTION_PATH/main.py" \
-          --jira-key "${{ inputs.jira_key }}" \
+          --command "${{ inputs.command }}" \
           --component "${{ inputs.component }}" \
-          --branch-name "${{ inputs.branch_name }}"
+          ${{ inputs.jira_key && format('--jira-key "{0}"', inputs.jira_key) || '' }} \
+          ${{ inputs.branch_name && format('--branch-name "{0}"', inputs.branch_name) || '' }} \
+          ${{ inputs.project && format('--project "{0}"', inputs.project) || '' }} \
+          ${{ inputs.state && format('--state "{0}"', inputs.state) || '' }} \
+          ${{ inputs.release_branch && format('--release-branch "{0}"', inputs.release_branch) || '' }}
       shell: bash

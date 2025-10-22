@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
-import argparse, json, os, sys
+import argparse
+import json
+import os
+import sys
 import requests
 from tabulate import tabulate
+
 
 def die(msg, status=1):
     # Surface the error in three places:
@@ -19,16 +23,20 @@ def die(msg, status=1):
         pass
     sys.exit(status)
 
+
 def jira_get_issue(base, email, token, key):
     url = f"{base}/rest/api/3/issue/{key}"
     # Also request `summary` so we can include the issue title in the check summary
     params = {"fields": "issuetype,description,summary"}
-    r = requests.get(url, params=params, auth=(email, token), headers={"Accept":"application/json"})
+    r = requests.get(
+        url, params=params, auth=(email, token), headers={"Accept": "application/json"}
+    )
     if r.status_code == 404:
         die(f"Jira issue not found: {key}")
     if r.status_code >= 300:
         die(f"Jira API error {r.status_code}: {r.text[:500]}")
     return r.json()
+
 
 def walk_adf_tables(node, found):
     """Recursively find ADF tables in Jira description (Atlassian Document Format)."""
@@ -41,6 +49,7 @@ def walk_adf_tables(node, found):
         for item in node:
             walk_adf_tables(item, found)
 
+
 def adf_table_to_rows(table_node):
     """
     Convert ADF table to header + rows.
@@ -52,7 +61,9 @@ def adf_table_to_rows(table_node):
     for idx, row in enumerate(rows):
         cells = row.get("content", []) or []
         row_vals = []
-        is_header_row = all(c.get("type") == "tableHeader" for c in cells) and len(cells) > 0
+        is_header_row = (
+            all(c.get("type") == "tableHeader" for c in cells) and len(cells) > 0
+        )
         for cell in cells:
             # Extract plain text from cell content nodes
             txt_parts = []
@@ -65,9 +76,14 @@ def adf_table_to_rows(table_node):
             data.append(row_vals)
     # normalize column widths across rows
     width = max(len(headers), max((len(r) for r in data), default=0))
-    headers = (headers + [""] * (width - len(headers))) if headers else [f"Col{i+1}" for i in range(width)]
+    headers = (
+        (headers + [""] * (width - len(headers)))
+        if headers
+        else [f"Col{i + 1}" for i in range(width)]
+    )
     data = [r + [""] * (width - len(r)) for r in data]
     return headers, data
+
 
 def extract_text(node):
     """Best-effort text extraction from ADF nodes."""
@@ -87,6 +103,7 @@ def extract_text(node):
                 txt += extract_text(ch)
     return txt
 
+
 def write_output(k, v):
     path = os.environ.get("GITHUB_OUTPUT")
     if not path:
@@ -103,6 +120,7 @@ def write_output(k, v):
             # If EOF appears in the value, append a random numeric suffix.
             if delim in v:
                 import time
+
                 delim = f"EOF_{int(time.time())}"
             f.write(f"{k}<<{delim}\n")
             f.write(v)
@@ -113,6 +131,7 @@ def write_output(k, v):
         else:
             f.write(f"{k}={v}\n")
 
+
 def append_summary(md):
     path = os.environ.get("GITHUB_STEP_SUMMARY")
     if not path:
@@ -120,35 +139,252 @@ def append_summary(md):
     with open(path, "a", encoding="utf-8") as f:
         f.write(md + "\n")
 
+
+def jira_search_issues(base, email, token, jql, fields=None):
+    """Search for Jira issues using JQL."""
+    if fields is None:
+        fields = ["key", "summary", "issuetype", "status", "description"]
+
+    url = f"{base}/rest/api/3/search"
+    params = {
+        "jql": jql,
+        "fields": ",".join(fields),
+        "maxResults": 100,  # Adjust as needed
+    }
+    r = requests.get(
+        url, params=params, auth=(email, token), headers={"Accept": "application/json"}
+    )
+    if r.status_code >= 300:
+        die(f"Jira search API error {r.status_code}: {r.text[:500]}")
+    return r.json()
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--jira-key", required=True)
-    # New individual parameters (preferred).
-    ap.add_argument("--component", default="", help="Component name to add/update")
-    ap.add_argument("--branch-name", default="", help="Branch name for the component")
+    ap.add_argument(
+        "--command",
+        choices=["upsert", "lookup"],
+        required=True,
+        help="Command to execute: 'upsert' to add/update component in specific ticket, 'lookup' to search for component in project",
+    )
+
+    # Common parameters
+    ap.add_argument(
+        "--component", required=True, help="Component name to add/update or search for"
+    )
+
+    # Upsert mode parameters
+    ap.add_argument(
+        "--jira-key", help="Specific Jira key to process (required for upsert mode)"
+    )
+    ap.add_argument(
+        "--branch-name", help="Branch name for the component (required for upsert mode)"
+    )
+
+    # Lookup mode parameters
+    ap.add_argument(
+        "--project", help="Jira project key to search in (required for lookup mode)"
+    )
+    ap.add_argument(
+        "--state", help="Jira state/status to filter by (required for lookup mode)"
+    )
+    ap.add_argument(
+        "--release-branch",
+        help="Release branch to search for in component table (required for lookup mode)",
+    )
+
     args = ap.parse_args()
+
+    # Validate arguments based on command
+    if args.command == "upsert":
+        if not args.jira_key or not args.branch_name:
+            die("Upsert command requires --jira-key and --branch-name arguments")
+    elif args.command == "lookup":
+        if not args.project or not args.state or not args.release_branch:
+            die(
+                "Lookup command requires --project, --state, and --release-branch arguments"
+            )
 
     base = os.getenv("JIRA_BASE_URL")
     email = os.getenv("JIRA_EMAIL") or "dean.chin@altimetrik.com"
     token = os.getenv("JIRA_API_TOKEN")
     # JIRA_EMAIL is optional and defaults to dean.chin@altimetrik.com
     missing = [
-        name for name, val in (
+        name
+        for name, val in (
             ("JIRA_BASE_URL", base),
             ("JIRA_API_TOKEN", token),
-        ) if not val
+        )
+        if not val
     ]
     if missing:
         die(
-            "Missing JIRA credentials in environment: " + ", ".join(missing) +
-            ".\nProvide these as repository or organization secrets and pass them to the workflow (example in README)."
+            "Missing JIRA credentials in environment: "
+            + ", ".join(missing)
+            + ".\nProvide these as repository or organization secrets and pass them to the workflow (example in README)."
         )
 
+    # Handle lookup command
+    if args.command == "lookup":
+        # Search for REL-SCOPE tickets in the specified project and state
+        jql = f'project = "{args.project}" AND issuetype = "REL-SCOPE" AND status = "{args.state}"'
+        search_result = jira_search_issues(base, email, token, jql)
+        issues = search_result.get("issues", [])
+
+        # Check if there's exactly one ticket
+        if len(issues) == 0:
+            error_msg = f"❌ No REL-SCOPE tickets found in project '{args.project}' with state '{args.state}'"
+            append_summary(f"**{error_msg}**")
+            die(error_msg)
+        elif len(issues) > 1:
+            # Create detailed error message with ticket summaries
+            ticket_list = []
+            for issue in issues:
+                summary = issue.get("fields", {}).get("summary", "No summary")
+                ticket_list.append(f"- **{issue['key']}**: {summary}")
+
+            error_msg = f"❌ Multiple REL-SCOPE tickets found in project '{args.project}' with state '{args.state}':"
+            detailed_msg = f"{error_msg}\n\nFound {len(issues)} tickets:\n" + "\n".join(
+                ticket_list
+            )
+            append_summary(
+                f"**{error_msg}**\n\nFound {len(issues)} tickets:\n"
+                + "\n".join(ticket_list)
+            )
+            die(detailed_msg)
+
+        # Get the single ticket
+        issue = issues[0]
+        issue_key = issue["key"]
+        write_output("found_ticket_key", issue_key)
+
+        # Process the ticket's table to look for the component and release branch
+        fields = issue.get("fields", {})
+        desc = fields.get("description")
+        has_description = bool(desc)
+        write_output("has_description", str(has_description).lower())
+
+        headers, rows = [], []
+        if desc:
+            tables = []
+            walk_adf_tables(desc, tables)
+            if tables:
+                headers, rows = adf_table_to_rows(tables[0])
+        has_table = bool(headers or rows)
+        write_output("has_table", str(has_table).lower())
+
+        # Look for the specific component and release branch
+        component_found = False
+        branch_matches = False
+        matching_row = None
+        found_component_row = (
+            None  # Track the row with the component (even if branch doesn't match)
+        )
+
+        if has_table:
+            # Look for component in the table (assuming Component is column index 1, Branch Name is column index 2)
+            comp_idx = 1
+            branch_idx = 2
+
+            for r in rows:
+                if (
+                    len(r) > comp_idx
+                    and (r[comp_idx] or "").strip().lower()
+                    == args.component.strip().lower()
+                ):
+                    component_found = True
+                    found_component_row = r
+                    # Check if the branch matches
+                    if (
+                        len(r) > branch_idx
+                        and (r[branch_idx] or "").strip() == args.release_branch.strip()
+                    ):
+                        branch_matches = True
+                        matching_row = r
+                    break
+
+        write_output("component_found", str(component_found).lower())
+        write_output("branch_matches", str(branch_matches).lower())
+        write_output("matching_row_json", matching_row or [])
+
+        # Generate summary
+        summary_parts = [
+            f"### Lookup Results for Project: **{args.project}**",
+            f"- State: **{args.state}**",
+            f"- Component: **{args.component}**",
+            f"- Release Branch: **{args.release_branch}**",
+            f"- Found ticket: **{issue_key}**",
+            f"- Component found: **{component_found}**",
+            f"- Branch matches: **{branch_matches}**",
+        ]
+
+        if has_table:
+            summary_parts.append("\n**Table in found ticket:**\n")
+            summary_parts.append(tabulate(rows, headers=headers, tablefmt="github"))
+
+        if matching_row:
+            summary_parts.append("\n**✅ Matching row:**\n")
+            summary_parts.append(
+                tabulate([matching_row], headers=headers, tablefmt="github")
+            )
+        elif found_component_row:
+            summary_parts.append("\n**⚠️ Component found but branch doesn't match:**\n")
+            summary_parts.append(
+                tabulate([found_component_row], headers=headers, tablefmt="github")
+            )
+
+        # Append the summary
+        append_summary("\n".join(summary_parts))
+        print("\n".join(summary_parts))
+
+        # Exit with appropriate status and detailed error messages
+        if not component_found:
+            if not has_table:
+                error_msg = f"❌ Component '{args.component}' not found in ticket {issue_key} - ticket has no table"
+            else:
+                error_msg = (
+                    f"❌ Component '{args.component}' not found in ticket {issue_key}"
+                )
+                error_msg += "\n\n**Available components in the table:**\n"
+                if rows:
+                    # Show all components from the table
+                    comp_names = []
+                    for r in rows:
+                        if len(r) > comp_idx and r[comp_idx].strip():
+                            comp_names.append(f"- {r[comp_idx].strip()}")
+                    if comp_names:
+                        error_msg += "\n".join(comp_names)
+                    else:
+                        error_msg += "- No components found in table"
+                else:
+                    error_msg += "- Table is empty"
+            die(error_msg)
+
+        if not branch_matches:
+            actual_branch = (
+                found_component_row[branch_idx].strip()
+                if len(found_component_row) > branch_idx
+                else "Not specified"
+            )
+            error_msg = f"❌ Component '{args.component}' found in ticket {issue_key} but release branch does not match"
+            error_msg += f"\n\n**Expected:** `{args.release_branch}`"
+            error_msg += f"\n**Actual:** `{actual_branch}`"
+            error_msg += "\n\n**Component row details:**\n"
+            error_msg += tabulate(
+                [found_component_row], headers=headers, tablefmt="github"
+            )
+            die(error_msg)
+
+        # Success - both component and branch match
+        write_output("lookup_result", "success")
+        return
+
+    # Original upsert mode logic
     issue = jira_get_issue(base, email, token, args.jira_key)
     fields = issue.get("fields", {})
     issuetype = (fields.get("issuetype") or {}).get("name", "")
     issue_summary = (fields.get("summary") or "").strip()
-    is_rel_scope = (issuetype == "REL-SCOPE")
+    is_rel_scope = issuetype == "REL-SCOPE"
     write_output("is_rel_scope", str(is_rel_scope).lower())
 
     desc = fields.get("description")
@@ -171,8 +407,6 @@ def main():
     if has_table:
         full_tbl_md = tabulate(rows, headers=headers, tablefmt="github")
 
-    matched_tbl_md = ""
-
     # Collect upsert-specific summary lines here; we'll build the final
     # summary after upsert processing so the Full table shows the
     # post-upsert state.
@@ -193,7 +427,13 @@ def main():
         upsert_raw = ",".join([comp, branch, "", ""]).strip()
     if upsert_raw:
         # Expected headers
-        expected_headers = ["Order", "Component", "Branch Name", "Change Request", "External Dependency"]
+        expected_headers = [
+            "Order",
+            "Component",
+            "Branch Name",
+            "Change Request",
+            "External Dependency",
+        ]
 
         # If no table exists, create one with expected headers
         if not has_table:
@@ -207,8 +447,8 @@ def main():
         if norm_hdrs != norm_expected:
             # Fail and provide expected header information
             msg = (
-                "Table headers do not match expected schema. Expected headers: " +
-                ", ".join(expected_headers)
+                "Table headers do not match expected schema. Expected headers: "
+                + ", ".join(expected_headers)
             )
             write_output("error_message", msg)
             append_summary(f"**ERROR:** {msg}")
@@ -217,7 +457,9 @@ def main():
         # Parse upsert values: Component, Branch Name, Change Request, External Dependency
         parts = [p.strip() for p in upsert_raw.split(",")]
         if len(parts) < 1:
-            die("Component value is required (provide --component and --branch-name inputs)")
+            die(
+                "Component value is required (provide --component and --branch-name inputs)"
+            )
 
         comp = parts[0]
         branch = parts[1] if len(parts) > 1 else ""
@@ -229,7 +471,10 @@ def main():
         found = False
         old_row = None
         for r in rows:
-            if len(r) > comp_idx and (r[comp_idx] or "").strip().lower() == comp.strip().lower():
+            if (
+                len(r) > comp_idx
+                and (r[comp_idx] or "").strip().lower() == comp.strip().lower()
+            ):
                 # capture a copy of the old row for reporting
                 old_row = r.copy()
                 # Do NOT overwrite existing row — fail with clear outputs so user knows why.
@@ -245,7 +490,9 @@ def main():
         if not found:
             # Determine next Order value
             try:
-                max_order = max((int(r[0]) for r in rows if r and r[0] != ""), default=-1)
+                max_order = max(
+                    (int(r[0]) for r in rows if r and r[0] != ""), default=-1
+                )
             except Exception:
                 max_order = len(rows) - 1
             new_order = max_order + 1 if max_order >= 0 else 0
@@ -256,7 +503,9 @@ def main():
         upsert_summary.append("\n**Upsert result:**\n")
         if old_row is not None:
             # Updated existing row: show before/after
-            upsert_summary.append(f"- Updated Component **{comp}** (Order {old_row[0]}):\n")
+            upsert_summary.append(
+                f"- Updated Component **{comp}** (Order {old_row[0]}):\n"
+            )
             # render small markdown table showing before and after
             before_tbl = tabulate([old_row], headers=headers, tablefmt="github")
             after_row = None
@@ -265,7 +514,11 @@ def main():
                 if rr and rr[0] == old_row[0]:
                     after_row = rr
                     break
-            after_tbl = tabulate([after_row], headers=headers, tablefmt="github") if after_row else ""
+            after_tbl = (
+                tabulate([after_row], headers=headers, tablefmt="github")
+                if after_row
+                else ""
+            )
             upsert_summary.append("**Before:**\n")
             upsert_summary.append(before_tbl)
             upsert_summary.append("**After:**\n")
@@ -275,13 +528,17 @@ def main():
             write_output("upserted_row_json", after_row)
         else:
             # Added new row: show the inserted row
-            upsert_summary.append(f"- Added Component **{comp}** (Order {new_row[0]}):\n")
-            upsert_summary.append(tabulate([new_row], headers=headers, tablefmt="github"))
+            upsert_summary.append(
+                f"- Added Component **{comp}** (Order {new_row[0]}):\n"
+            )
+            upsert_summary.append(
+                tabulate([new_row], headers=headers, tablefmt="github")
+            )
             # write outputs for add
             write_output("upsert_result", "added")
             write_output("upserted_row_json", new_row)
 
-    # Re-render the table markdown and write as output
+        # Re-render the table markdown and write as output
         full_tbl_md = tabulate(rows, headers=headers, tablefmt="github")
         write_output("table_markdown", full_tbl_md)
         write_output("matched_rows_json", rows)
@@ -303,7 +560,10 @@ def main():
 
         def build_adf_table(headers_list, rows_list):
             # header row
-            header_row = {"type": "tableRow", "content": [make_table_header_cell(h) for h in headers_list]}
+            header_row = {
+                "type": "tableRow",
+                "content": [make_table_header_cell(h) for h in headers_list],
+            }
             data_rows = []
             for r in rows_list:
                 cells = [make_table_cell(c) for c in r]
@@ -333,7 +593,11 @@ def main():
                         walk(v)
                 elif isinstance(node, list):
                     for i, item in enumerate(node):
-                        if isinstance(item, dict) and item.get("type") == "table" and not replaced:
+                        if (
+                            isinstance(item, dict)
+                            and item.get("type") == "table"
+                            and not replaced
+                        ):
                             node[i] = new_table
                             replaced = True
                             return
@@ -345,12 +609,20 @@ def main():
             walk(desc_copy)
             if not replaced:
                 # try to append to top-level content if present
-                if isinstance(desc_copy, dict) and "content" in desc_copy and isinstance(desc_copy["content"], list):
+                if (
+                    isinstance(desc_copy, dict)
+                    and "content" in desc_copy
+                    and isinstance(desc_copy["content"], list)
+                ):
                     desc_copy["content"].append(new_table)
                     replaced = True
                 else:
                     # fallback: create new doc containing original and table
-                    desc_copy = {"type": "doc", "version": 1, "content": [adf_desc, new_table]}
+                    desc_copy = {
+                        "type": "doc",
+                        "version": 1,
+                        "content": [adf_desc, new_table],
+                    }
                     replaced = True
             return desc_copy, replaced
 
@@ -361,7 +633,9 @@ def main():
         if did_replace:
             # Respect local testing toggle — set SKIP_JIRA_UPDATE=1 to avoid making network calls
             if os.getenv("SKIP_JIRA_UPDATE"):
-                append_summary("(SKIP_JIRA_UPDATE set) Prepared new description but did not call Jira API.")
+                append_summary(
+                    "(SKIP_JIRA_UPDATE set) Prepared new description but did not call Jira API."
+                )
                 # Prepare a stable ADF doc to show for debugging
                 if isinstance(new_desc, dict) and new_desc.get("type") == "doc":
                     final_desc = new_desc
@@ -370,12 +644,17 @@ def main():
                 # Add trimmed JSON payload to summary for debugging
                 try:
                     preview = json.dumps(final_desc, ensure_ascii=False)
-                    preview_short = preview if len(preview) < 2000 else preview[:1997] + "..."
+                    preview_short = (
+                        preview if len(preview) < 2000 else preview[:1997] + "..."
+                    )
                     append_summary("Prepared payload (truncated):")
                     append_summary(preview_short)
                 except Exception:
                     pass
-                write_output("error_message", "SKIP_JIRA_UPDATE: new description prepared but not applied")
+                write_output(
+                    "error_message",
+                    "SKIP_JIRA_UPDATE: new description prepared but not applied",
+                )
             else:
                 # perform Jira update
                 try:
@@ -383,13 +662,24 @@ def main():
                     if isinstance(new_desc, dict) and new_desc.get("type") == "doc":
                         final_desc = new_desc
                     else:
-                        final_desc = {"type": "doc", "version": 1, "content": [new_desc]}
+                        final_desc = {
+                            "type": "doc",
+                            "version": 1,
+                            "content": [new_desc],
+                        }
                     url = f"{base}/rest/api/3/issue/{args.jira_key}"
                     payload = {"fields": {"description": final_desc}}
-                    headers_req = {"Accept": "application/json", "Content-Type": "application/json"}
-                    r = requests.put(url, json=payload, auth=(email, token), headers=headers_req)
+                    headers_req = {
+                        "Accept": "application/json",
+                        "Content-Type": "application/json",
+                    }
+                    r = requests.put(
+                        url, json=payload, auth=(email, token), headers=headers_req
+                    )
                     if r.status_code >= 300:
-                        die(f"Failed to update Jira issue description: {r.status_code}: {r.text[:1000]}")
+                        die(
+                            f"Failed to update Jira issue description: {r.status_code}: {r.text[:1000]}"
+                        )
                     # success
                     write_output("error_message", "")
                     append_summary("Description updated in Jira")
@@ -425,6 +715,7 @@ def main():
         die(f"Issue {args.jira_key} has no description")
     if not has_table:
         die(f"Issue {args.jira_key} description has no ADF table")
+
 
 if __name__ == "__main__":
     main()
