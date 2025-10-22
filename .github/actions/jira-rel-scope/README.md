@@ -1,4 +1,4 @@
-Jira REL-SCOPE checker action
+# Jira REL-SCOPE checker action
 
 Usage
 
@@ -10,15 +10,18 @@ This composite action supports two modes for working with Jira REL-SCOPE tickets
 ## Commands
 
 ### Upsert Command
+
 Adds or updates a component in a specific Jira ticket.
 
 **Inputs:**
+
 - `command`: `"upsert"`
 - `jira_key` (required): Jira issue key (e.g., `REL-1234`).
 - `component` (required): Component name to add/upsert.
 - `branch_name` (required): Branch name for the component.
 
 **Example:**
+
 ```yaml
 - name: Upsert component in REL-SCOPE ticket
   uses: ./.github/actions/jira-rel-scope
@@ -34,9 +37,11 @@ Adds or updates a component in a specific Jira ticket.
 ```
 
 ### Lookup Command
+
 Searches for a component in REL-SCOPE tickets and validates the release branch.
 
 **Inputs:**
+
 - `command`: `"lookup"`
 - `project` (required): Jira project key to search in.
 - `state` (required): Jira state/status to filter by.
@@ -44,6 +49,7 @@ Searches for a component in REL-SCOPE tickets and validates the release branch.
 - `release_branch` (required): Expected release branch for the component.
 
 **Example:**
+
 ```yaml
 - name: Lookup component in REL-SCOPE tickets
   uses: ./.github/actions/jira-rel-scope
