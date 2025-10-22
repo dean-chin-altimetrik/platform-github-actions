@@ -2,20 +2,28 @@ Jira REL-SCOPE checker action
 
 Usage
 
-This composite action validates a Jira issue is type `REL-SCOPE`, parses the ADF description table, and can add a row for a Component/Branch.
+This composite action supports two modes for working with Jira REL-SCOPE tickets:
 
-Inputs
+1. **Upsert mode**: Validates a Jira issue is type `REL-SCOPE`, parses the ADF description table, and can add/update a row for a Component/Branch.
+2. **Lookup mode**: Searches for REL-SCOPE tickets in a specific project and state, then validates if a component exists with the correct release branch.
 
+## Commands
+
+### Upsert Command
+Adds or updates a component in a specific Jira ticket.
+
+**Inputs:**
+- `command`: `"upsert"`
 - `jira_key` (required): Jira issue key (e.g., `REL-1234`).
 - `component` (required): Component name to add/upsert.
 - `branch_name` (required): Branch name for the component.
 
-Example (workflow)
-
+**Example:**
 ```yaml
-- name: Check REL-SCOPE in Jira
+- name: Upsert component in REL-SCOPE ticket
   uses: ./.github/actions/jira-rel-scope
   with:
+    command: upsert
     jira_key: ${{ inputs.jira_key }}
     component: ${{ inputs.component }}
     branch_name: ${{ inputs.branch_name }}
@@ -24,6 +32,41 @@ Example (workflow)
     JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
     JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
 ```
+
+### Lookup Command
+Searches for a component in REL-SCOPE tickets and validates the release branch.
+
+**Inputs:**
+- `command`: `"lookup"`
+- `project` (required): Jira project key to search in.
+- `state` (required): Jira state/status to filter by.
+- `component` (required): Component name to search for.
+- `release_branch` (required): Expected release branch for the component.
+
+**Example:**
+```yaml
+- name: Lookup component in REL-SCOPE tickets
+  uses: ./.github/actions/jira-rel-scope
+  with:
+    command: lookup
+    project: "PROJ"
+    state: "In Progress"
+    component: "my-component"
+    release_branch: "release/v1.0"
+  env:
+    JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+    JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+    JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+```
+
+## Lookup Error Scenarios
+
+The lookup command will fail the pipeline with detailed error messages for:
+
+- **No tickets found**: No REL-SCOPE tickets in the specified project/state
+- **Multiple tickets found**: Multiple tickets found (lists all with keys and summaries)
+- **Component not found**: Component doesn't exist in the found ticket (shows available components)
+- **Wrong branch**: Component found but release branch doesn't match (shows expected vs actual)
 
 Notes
 
