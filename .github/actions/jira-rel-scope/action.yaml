@@ -3,9 +3,6 @@ description: "Validate Jira key, type=REL-SCOPE, parse ADF description table, op
 inputs:
   jira_key:
     required: true
-  search_column:
-    required: false
-    default: ""
   component:
     description: "Component (required)"
     required: true

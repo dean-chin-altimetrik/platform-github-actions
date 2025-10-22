@@ -123,7 +123,6 @@ def append_summary(md):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--jira-key", required=True)
-    # search_column/search_value removed; upsert_row previously drove component matching.
     # New individual parameters (preferred).
     ap.add_argument("--component", default="", help="Component name to add/update")
     ap.add_argument("--branch-name", default="", help="Branch name for the component")

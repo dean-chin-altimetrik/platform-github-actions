@@ -9,7 +9,6 @@ Inputs
 - `jira_key` (required): Jira issue key (e.g., `REL-1234`).
 - `component` (required): Component name to add/upsert.
 - `branch_name` (required): Branch name for the component.
-- `search_column` (optional): column to search (not typically used here).
 
 Example (workflow)
 
