@@ -7,6 +7,10 @@ inputs:
   component:
     description: "Component name to add/update or search for"
     required: true
+  issuetype:
+    description: "Jira issue type to search for (default: REL-SCOPE)"
+    required: false
+    default: "REL-SCOPE"
   # Upsert mode parameters
   jira_key:
     description: "Specific Jira key to process (required for upsert command)"
@@ -25,8 +29,8 @@ inputs:
     description: "Release branch to search for in component table (required for lookup command)"
     required: false
 outputs:
-  is_rel_scope:
-    value: ${{ steps.run.outputs.is_rel_scope }}
+  is_correct_type:
+    value: ${{ steps.run.outputs.is_correct_type }}
   has_description:
     value: ${{ steps.run.outputs.has_description }}
   has_table:
@@ -71,6 +75,7 @@ runs:
         python "$GITHUB_ACTION_PATH/main.py" \
           --command "${{ inputs.command }}" \
           --component "${{ inputs.component }}" \
+          --issuetype "${{ inputs.issuetype }}" \
           ${{ inputs.jira_key && format('--jira-key "{0}"', inputs.jira_key) || '' }} \
           ${{ inputs.branch_name && format('--branch-name "{0}"', inputs.branch_name) || '' }} \
           ${{ inputs.project && format('--project "{0}"', inputs.project) || '' }} \

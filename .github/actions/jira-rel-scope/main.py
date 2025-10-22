@@ -172,6 +172,11 @@ def main():
     ap.add_argument(
         "--component", required=True, help="Component name to add/update or search for"
     )
+    ap.add_argument(
+        "--issuetype", 
+        default="REL-SCOPE", 
+        help="Jira issue type to search for (default: REL-SCOPE)"
+    )
 
     # Upsert mode parameters
     ap.add_argument(
@@ -226,14 +231,14 @@ def main():
 
     # Handle lookup command
     if args.command == "lookup":
-        # Search for REL-SCOPE tickets in the specified project and state
-        jql = f'project = "{args.project}" AND issuetype = "REL-SCOPE" AND status = "{args.state}"'
+        # Search for tickets of specified type in the specified project and state
+        jql = f'project = "{args.project}" AND issuetype = "{args.issuetype}" AND status = "{args.state}"'
         search_result = jira_search_issues(base, email, token, jql)
         issues = search_result.get("issues", [])
 
         # Check if there's exactly one ticket
         if len(issues) == 0:
-            error_msg = f"❌ No REL-SCOPE tickets found in project '{args.project}' with state '{args.state}'"
+            error_msg = f"❌ No {args.issuetype} tickets found in project '{args.project}' with state '{args.state}'"
             append_summary(f"**{error_msg}**")
             die(error_msg)
         elif len(issues) > 1:
@@ -243,7 +248,7 @@ def main():
                 summary = issue.get("fields", {}).get("summary", "No summary")
                 ticket_list.append(f"- **{issue['key']}**: {summary}")
 
-            error_msg = f"❌ Multiple REL-SCOPE tickets found in project '{args.project}' with state '{args.state}':"
+            error_msg = f"❌ Multiple {args.issuetype} tickets found in project '{args.project}' with state '{args.state}':"
             detailed_msg = f"{error_msg}\n\nFound {len(issues)} tickets:\n" + "\n".join(
                 ticket_list
             )
@@ -384,8 +389,8 @@ def main():
     fields = issue.get("fields", {})
     issuetype = (fields.get("issuetype") or {}).get("name", "")
     issue_summary = (fields.get("summary") or "").strip()
-    is_rel_scope = issuetype == "REL-SCOPE"
-    write_output("is_rel_scope", str(is_rel_scope).lower())
+    is_correct_type = issuetype == args.issuetype
+    write_output("is_correct_type", str(is_correct_type).lower())
 
     desc = fields.get("description")
     has_description = bool(desc)
@@ -689,7 +694,7 @@ def main():
     # Build the final summary now so the "Full table" reflects post-upsert state
     summary_parts = [
         f"### Jira Issue: **{args.jira_key}**{(' — ' + issue_summary) if issue_summary else ''}",
-        f"- Type is REL-SCOPE: **{is_rel_scope}**",
+        f"- Type is {args.issuetype}: **{is_correct_type}**",
         f"- Has description: **{has_description}**",
         f"- Found table: **{has_table}**",
     ]
@@ -704,8 +709,8 @@ def main():
     print("\n".join(summary_parts))
 
     # Hard validations you care about (non-zero exit on failure)
-    if not is_rel_scope:
-        die(f"Issue {args.jira_key} is not of type REL-SCOPE")
+    if not is_correct_type:
+        die(f"Issue {args.jira_key} is not of type {args.issuetype}")
     # If an upsert was requested we already created/prepared the table and
     # updated (or prepared to update) the description. In that case avoid
     # failing on missing description/table so the upsert flow can succeed.

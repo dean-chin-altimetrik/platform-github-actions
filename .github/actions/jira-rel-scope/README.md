@@ -19,6 +19,7 @@ Adds or updates a component in a specific Jira ticket.
 - `jira_key` (required): Jira issue key (e.g., `REL-1234`).
 - `component` (required): Component name to add/upsert.
 - `branch_name` (required): Branch name for the component.
+- `issuetype` (optional): Jira issue type to validate (default: `REL-SCOPE`).
 
 **Example:**
 
@@ -47,6 +48,7 @@ Searches for a component in REL-SCOPE tickets and validates the release branch.
 - `state` (required): Jira state/status to filter by.
 - `component` (required): Component name to search for.
 - `release_branch` (required): Expected release branch for the component.
+- `issuetype` (optional): Jira issue type to search for (default: `REL-SCOPE`).
 
 **Example:**
 
@@ -59,6 +61,24 @@ Searches for a component in REL-SCOPE tickets and validates the release branch.
     state: "In Progress"
     component: "my-component"
     release_branch: "release/v1.0"
+  env:
+    JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+    JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+    JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+```
+
+**Example with custom issue type:**
+
+```yaml
+- name: Lookup component in custom issue type
+  uses: ./.github/actions/jira-rel-scope
+  with:
+    command: lookup
+    project: "PROJ"
+    state: "In Progress"
+    component: "my-component"
+    release_branch: "release/v1.0"
+    issuetype: "RELEASE-NOTE"
   env:
     JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
     JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
