@@ -145,7 +145,7 @@ def jira_search_issues(base, email, token, jql, fields=None):
     if fields is None:
         fields = ["key", "summary", "issuetype", "status", "description"]
 
-    url = f"{base}/rest/api/3/search"
+    url = f"{base}/rest/api/3/search/jql"
     params = {
         "jql": jql,
         "fields": ",".join(fields),
