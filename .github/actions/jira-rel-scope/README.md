@@ -75,10 +75,10 @@ Searches for a component in REL-SCOPE tickets and validates the release branch.
   with:
     command: lookup
     project: "PROJ"
-    state: "In Progress"
+    state: "Active Env"
     component: "my-component"
     release_branch: "release/v1.0"
-    issuetype: "RELEASE-NOTE"
+    issuetype: "REL-SCOPE"
   env:
     JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
     JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}

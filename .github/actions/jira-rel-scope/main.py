@@ -173,9 +173,9 @@ def main():
         "--component", required=True, help="Component name to add/update or search for"
     )
     ap.add_argument(
-        "--issuetype", 
-        default="REL-SCOPE", 
-        help="Jira issue type to search for (default: REL-SCOPE)"
+        "--issuetype",
+        default="REL-SCOPE",
+        help="Jira issue type to search for (default: REL-SCOPE)",
     )
 
     # Upsert mode parameters
