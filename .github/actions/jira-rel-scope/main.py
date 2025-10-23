@@ -408,7 +408,9 @@ def main():
         return
 
     # Original upsert mode logic
-    issue = jira_get_issue(base, email, token, args.jira_key, args.upsert_permission_field_id)
+    issue = jira_get_issue(
+        base, email, token, args.jira_key, args.upsert_permission_field_id
+    )
     fields = issue.get("fields", {})
     issuetype = (fields.get("issuetype") or {}).get("name", "")
     issue_summary = (fields.get("summary") or "").strip()
@@ -419,8 +421,10 @@ def main():
     upsert_permission_allowed = True
     if args.upsert_permission_field_id:
         # Get the friendly name of the custom field
-        field_name = jira_get_field_metadata(base, email, token, args.upsert_permission_field_id)
-        
+        field_name = jira_get_field_metadata(
+            base, email, token, args.upsert_permission_field_id
+        )
+
         permission_field_value = fields.get(args.upsert_permission_field_id)
         if permission_field_value is None:
             # Field doesn't exist or is not accessible
