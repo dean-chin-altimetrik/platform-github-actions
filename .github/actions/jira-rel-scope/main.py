@@ -752,19 +752,25 @@ def main():
         f"- Has description: **{has_description}**",
         f"- Found table: **{has_table}**",
     ]
-    
+
     # Add upsert permission field information if provided
     if args.upsert_permission_field_id:
-        field_name = jira_get_field_metadata(base, email, token, args.upsert_permission_field_id)
+        field_name = jira_get_field_metadata(
+            base, email, token, args.upsert_permission_field_id
+        )
         permission_field_value = fields.get(args.upsert_permission_field_id)
         if permission_field_value is not None:
             if isinstance(permission_field_value, dict):
                 field_value = permission_field_value.get("value", "")
             else:
                 field_value = str(permission_field_value)
-            summary_parts.append(f"- Upsert permission field '{field_name}': **{field_value}**")
+            summary_parts.append(
+                f"- Upsert permission field '{field_name}': **{field_value}**"
+            )
         else:
-            summary_parts.append(f"- Upsert permission field '{field_name}': **Not accessible**")
+            summary_parts.append(
+                f"- Upsert permission field '{field_name}': **Not accessible**"
+            )
     if has_table:
         summary_parts.append("\n**Full table (after upsert):**\n")
         summary_parts.append(full_tbl_md or "_(empty)_")
