@@ -20,9 +20,9 @@ Adds or updates a component in a specific Jira ticket.
 - `component` (required): Component name to add/upsert.
 - `branch_name` (required): Branch name for the component.
 - `issuetype` (optional): Jira issue type to validate (default: `REL-SCOPE`).
-- `upsert_permission_field_id` (optional): Custom field ID that controls whether component upserting is allowed (e.g., `customfield_15850`). Field name will be fetched automatically from Jira.
+- `upsert_permission_field_id` (optional): Custom field ID that controls whether component upserting is allowed (default: `customfield_15850`). Field name will be fetched automatically from Jira.
 
-**Example:**
+**Example (uses default permission field):**
 
 ```yaml
 - name: Upsert component in REL-SCOPE ticket
@@ -32,23 +32,24 @@ Adds or updates a component in a specific Jira ticket.
     jira_key: ${{ inputs.jira_key }}
     component: ${{ inputs.component }}
     branch_name: ${{ inputs.branch_name }}
+    # upsert_permission_field_id defaults to "customfield_15850"
   env:
     JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
     JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
     JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
 ```
 
-**Example with upsert permission validation:**
+**Example with custom permission field:**
 
 ```yaml
-- name: Upsert component with permission check
+- name: Upsert component with custom permission field
   uses: ./.github/actions/jira-rel-scope
   with:
     command: upsert
     jira_key: ${{ inputs.jira_key }}
     component: ${{ inputs.component }}
     branch_name: ${{ inputs.branch_name }}
-    upsert_permission_field_id: "customfield_15850"
+    upsert_permission_field_id: "customfield_12345"
   env:
     JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
     JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}

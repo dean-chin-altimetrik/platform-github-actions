@@ -21,6 +21,7 @@ inputs:
   upsert_permission_field_id:
     description: "Custom field ID that controls whether component upserting is allowed (e.g., customfield_15850). Field name will be fetched automatically from Jira."
     required: false
+    default: "customfield_15850"
   # Lookup mode parameters
   project:
     description: "Jira project key to search in (required for lookup command)"
