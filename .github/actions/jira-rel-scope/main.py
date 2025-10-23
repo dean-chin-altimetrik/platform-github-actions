@@ -143,6 +143,23 @@ def append_summary(md):
         f.write(md + "\n")
 
 
+def jira_get_field_metadata(base, email, token, field_id):
+    """Get custom field metadata including the friendly name."""
+    url = f"{base}/rest/api/3/field"
+    r = requests.get(
+        url, auth=(email, token), headers={"Accept": "application/json"}
+    )
+    if r.status_code >= 300:
+        die(f"Jira field metadata API error {r.status_code}: {r.text[:500]}")
+    
+    fields = r.json()
+    for field in fields:
+        if field.get("id") == field_id:
+            return field.get("name", field_id)
+    
+    # If field not found, return the field_id as fallback
+    return field_id
+
 def jira_search_issues(base, email, token, jql, fields=None):
     """Search for Jira issues using JQL."""
     if fields is None:
@@ -190,11 +207,7 @@ def main():
     )
     ap.add_argument(
         "--custom-field-id",
-        help="Custom field ID to check before upsert (e.g., customfield_15850)",
-    )
-    ap.add_argument(
-        "--custom-field-name",
-        help="Friendly name of the custom field for error messages (e.g., 'Upsert Permission')",
+        help="Custom field ID to check before upsert (e.g., customfield_15850). Field name will be fetched automatically from Jira.",
     )
 
     # Lookup mode parameters
@@ -406,23 +419,28 @@ def main():
     # Check custom field if provided
     custom_field_allowed = True
     if args.custom_field_id:
+        # Get the friendly name of the custom field
+        field_name = jira_get_field_metadata(base, email, token, args.custom_field_id)
+        
         custom_field_value = fields.get(args.custom_field_id)
         if custom_field_value is None:
             # Field doesn't exist or is not accessible
-            field_name = args.custom_field_name or args.custom_field_id
-            die(f"Custom field '{field_name}' ({args.custom_field_id}) is not accessible or does not exist")
+            die(
+                f"Custom field '{field_name}' ({args.custom_field_id}) is not accessible or does not exist"
+            )
         elif isinstance(custom_field_value, dict):
             # Handle select list fields (common format)
             field_value = custom_field_value.get("value", "")
         else:
             # Handle simple string fields
             field_value = str(custom_field_value)
-        
+
         custom_field_allowed = field_value.strip().lower() == "allowed"
         if not custom_field_allowed:
-            field_name = args.custom_field_name or args.custom_field_id
-            die(f"Custom field '{field_name}' is not set to 'Allowed' (current value: '{field_value}'), so we can't upsert the component")
-    
+            die(
+                f"Custom field '{field_name}' is not set to 'Allowed' (current value: '{field_value}'), so we can't upsert the component"
+            )
+
     write_output("custom_field_allowed", str(custom_field_allowed).lower())
 
     desc = fields.get("description")

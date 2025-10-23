@@ -20,8 +20,7 @@ Adds or updates a component in a specific Jira ticket.
 - `component` (required): Component name to add/upsert.
 - `branch_name` (required): Branch name for the component.
 - `issuetype` (optional): Jira issue type to validate (default: `REL-SCOPE`).
-- `custom_field_id` (optional): Custom field ID to check before upsert (e.g., `customfield_15850`).
-- `custom_field_name` (optional): Friendly name of the custom field for error messages (e.g., `Upsert Permission`).
+- `custom_field_id` (optional): Custom field ID to check before upsert (e.g., `customfield_15850`). Field name will be fetched automatically from Jira.
 
 **Example:**
 
@@ -50,7 +49,6 @@ Adds or updates a component in a specific Jira ticket.
     component: ${{ inputs.component }}
     branch_name: ${{ inputs.branch_name }}
     custom_field_id: "customfield_15850"
-    custom_field_name: "Upsert Permission"
   env:
     JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
     JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}

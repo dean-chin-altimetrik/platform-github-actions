@@ -19,10 +19,7 @@ inputs:
     description: "Branch Name (required for upsert command)"
     required: false
   custom_field_id:
-    description: "Custom field ID to check before upsert (e.g., customfield_15850)"
-    required: false
-  custom_field_name:
-    description: "Friendly name of the custom field for error messages (e.g., 'Upsert Permission')"
+    description: "Custom field ID to check before upsert (e.g., customfield_15850). Field name will be fetched automatically from Jira."
     required: false
   # Lookup mode parameters
   project:
@@ -87,7 +84,6 @@ runs:
           ${{ inputs.jira_key && format('--jira-key "{0}"', inputs.jira_key) || '' }} \
           ${{ inputs.branch_name && format('--branch-name "{0}"', inputs.branch_name) || '' }} \
           ${{ inputs.custom_field_id && format('--custom-field-id "{0}"', inputs.custom_field_id) || '' }} \
-          ${{ inputs.custom_field_name && format('--custom-field-name "{0}"', inputs.custom_field_name) || '' }} \
           ${{ inputs.project && format('--project "{0}"', inputs.project) || '' }} \
           ${{ inputs.state && format('--state "{0}"', inputs.state) || '' }} \
           ${{ inputs.release_branch && format('--release-branch "{0}"', inputs.release_branch) || '' }}
