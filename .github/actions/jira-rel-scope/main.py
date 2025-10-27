@@ -169,6 +169,8 @@ def validate_upsert_prerequisites(
     upsert_permission_field_id,
     blocked_statuses,
     issuetype,
+    component=None,
+    branch_name=None,
 ):
     """
     Validate all prerequisites for upsert operation.
@@ -230,6 +232,29 @@ def validate_upsert_prerequisites(
             validation_result["errors"].append(
                 f"Ticket is in '{current_status}' status. Blocked statuses: {', '.join(blocked_statuses)}"
             )
+
+    # Check if component already exists in table (if component is provided)
+    if component:
+        desc = fields.get("description")
+        headers, rows = [], []
+        if desc:
+            tables = []
+            walk_adf_tables(desc, tables)
+            if tables:
+                headers, rows = adf_table_to_rows(tables[0])
+        
+        # Search for component in the table
+        comp_idx = 1  # Component is column index 1
+        for r in rows:
+            if (
+                len(r) > comp_idx
+                and (r[comp_idx] or "").strip().lower() == component.strip().lower()
+            ):
+                validation_result["valid"] = False
+                validation_result["errors"].append(
+                    f"Component '{component}' already exists in table (Order {r[0]}). Cannot upsert duplicate component."
+                )
+                break
 
     return validation_result
 
@@ -385,6 +410,8 @@ def main():
             args.upsert_permission_field_id,
             args.blocked_statuses,
             args.issuetype,
+            args.component,
+            args.branch_name,
         )
 
         # Write outputs
@@ -594,6 +621,8 @@ def main():
         args.upsert_permission_field_id,
         args.blocked_statuses,
         args.issuetype,
+        args.component,
+        args.branch_name,
     )
 
     # Fail early if validation doesn't pass (same checks as validate command)
