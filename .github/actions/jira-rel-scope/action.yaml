@@ -22,6 +22,10 @@ inputs:
     description: "Custom field ID that controls whether component upserting is allowed (e.g., customfield_15850). Field name will be fetched automatically from Jira."
     required: false
     default: "customfield_15850"
+  blocked_statuses:
+    description: "JIRA statuses that should block upsert operations (default: APPROVED CLOSED)"
+    required: false
+    default: "APPROVED CLOSED"
   # Lookup mode parameters
   project:
     description: "Jira project key to search in (required for lookup command)"
@@ -37,6 +41,10 @@ outputs:
     value: ${{ steps.run.outputs.is_correct_type }}
   upsert_permission_allowed:
     value: ${{ steps.run.outputs.upsert_permission_allowed }}
+  ticket_status:
+    value: ${{ steps.run.outputs.ticket_status }}
+  status_allows_upsert:
+    value: ${{ steps.run.outputs.status_allows_upsert }}
   has_description:
     value: ${{ steps.run.outputs.has_description }}
   has_table:
@@ -85,6 +93,7 @@ runs:
           ${{ inputs.jira_key && format('--jira-key "{0}"', inputs.jira_key) || '' }} \
           ${{ inputs.branch_name && format('--branch-name "{0}"', inputs.branch_name) || '' }} \
           ${{ inputs.upsert_permission_field_id && format('--upsert-permission-field-id "{0}"', inputs.upsert_permission_field_id) || '' }} \
+          ${{ inputs.blocked_statuses && format('--blocked-statuses {0}', inputs.blocked_statuses) || '' }} \
           ${{ inputs.project && format('--project "{0}"', inputs.project) || '' }} \
           ${{ inputs.state && format('--state "{0}"', inputs.state) || '' }} \
           ${{ inputs.release_branch && format('--release-branch "{0}"', inputs.release_branch) || '' }}

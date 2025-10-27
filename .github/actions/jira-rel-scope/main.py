@@ -26,8 +26,8 @@ def die(msg, status=1):
 
 def jira_get_issue(base, email, token, key, custom_field_id=None):
     url = f"{base}/rest/api/3/issue/{key}"
-    # Also request `summary` so we can include the issue title in the check summary
-    fields = "issuetype,description,summary"
+    # Also request `summary` and `status` so we can include the issue title and status in the check summary
+    fields = "issuetype,description,summary,status"
     if custom_field_id:
         fields += f",{custom_field_id}"
     params = {"fields": fields}
@@ -207,6 +207,12 @@ def main():
     ap.add_argument(
         "--upsert-permission-field-id",
         help="Custom field ID that controls whether component upserting is allowed (e.g., customfield_15850). Field name will be fetched automatically from Jira.",
+    )
+    ap.add_argument(
+        "--blocked-statuses",
+        nargs="+",  # Accept multiple values
+        default=["APPROVED", "CLOSED"],
+        help="JIRA statuses that should block upsert operations (default: APPROVED CLOSED)",
     )
 
     # Lookup mode parameters
@@ -445,6 +451,23 @@ def main():
             )
 
     write_output("upsert_permission_allowed", str(upsert_permission_allowed).lower())
+
+    # Check ticket status if blocked statuses are provided
+    current_status = (fields.get("status") or {}).get("name", "")
+    status_allows_upsert = True
+    if args.blocked_statuses:
+        if current_status.upper() in [
+            status.upper() for status in args.blocked_statuses
+        ]:
+            die(
+                f"Upsert blocked: Ticket {args.jira_key} is in '{current_status}' status. Blocked statuses: {', '.join(args.blocked_statuses)}"
+            )
+        status_allows_upsert = current_status.upper() not in [
+            s.upper() for s in args.blocked_statuses
+        ]
+
+    write_output("ticket_status", current_status)
+    write_output("status_allows_upsert", str(status_allows_upsert).lower())
 
     desc = fields.get("description")
     has_description = bool(desc)
@@ -749,6 +772,8 @@ def main():
     summary_parts = [
         f"### Jira Issue: **{args.jira_key}**{(' — ' + issue_summary) if issue_summary else ''}",
         f"- Type is {args.issuetype}: **{is_correct_type}**",
+        f"- Ticket status: **{current_status}**",
+        f"- Status allows upsert: **{status_allows_upsert}**",
         f"- Has description: **{has_description}**",
         f"- Found table: **{has_table}**",
     ]

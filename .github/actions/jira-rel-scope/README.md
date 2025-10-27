@@ -21,6 +21,7 @@ Adds or updates a component in a specific Jira ticket.
 - `branch_name` (required): Branch name for the component.
 - `issuetype` (optional): Jira issue type to validate (default: `REL-SCOPE`).
 - `upsert_permission_field_id` (optional): Custom field ID that controls whether component upserting is allowed (default: `customfield_15850`). Field name will be fetched automatically from Jira.
+- `blocked_statuses` (optional): JIRA statuses that should block upsert operations (default: `APPROVED CLOSED`).
 
 **Example (uses default permission field):**
 
@@ -50,6 +51,23 @@ Adds or updates a component in a specific Jira ticket.
     component: ${{ inputs.component }}
     branch_name: ${{ inputs.branch_name }}
     upsert_permission_field_id: "customfield_12345"
+  env:
+    JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+    JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+    JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+```
+
+**Example with custom blocked statuses:**
+
+```yaml
+- name: Upsert component with custom blocked statuses
+  uses: ./.github/actions/jira-rel-scope
+  with:
+    command: upsert
+    jira_key: ${{ inputs.jira_key }}
+    component: ${{ inputs.component }}
+    branch_name: ${{ inputs.branch_name }}
+    blocked_statuses: "APPROVED CLOSED RESOLVED"
   env:
     JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
     JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
