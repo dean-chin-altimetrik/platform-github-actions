@@ -84,9 +84,17 @@ Checks all prerequisites for upsert operations without performing the actual ups
 
 - `command`: `"validate-upsert-prereqs"`
 - `jira_key` (required): Jira issue key (e.g., `REL-1234`).
+- `component` (optional): Component name to check for conflicts. If provided, validates that the component doesn't already exist in the table.
+- `branch_name` (optional): Branch name (optional for validation).
 - `issuetype` (optional): Jira issue type to validate (default: `REL-SCOPE`).
 - `upsert_permission_field_id` (optional): Custom field ID that controls whether component upserting is allowed (default: `customfield_15850`). Field name will be fetched automatically from Jira.
 - `blocked_statuses` (optional): JIRA statuses that should block upsert operations (default: `APPROVED CLOSED`).
+
+**Validation Checks Performed:**
+- Issue type matches expected type
+- Upsert permission field is set to "Allowed"
+- Ticket status is not in blocked statuses
+- Component does not already exist in the table (if component provided)
 
 **Example:**
 
@@ -97,6 +105,8 @@ Checks all prerequisites for upsert operations without performing the actual ups
   with:
     command: validate-upsert-prereqs
     jira_key: ${{ inputs.jira_key }}
+    component: "my-component"  # Optional: checks for conflicts
+    branch_name: "feature/my-branch"  # Optional
   env:
     JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
     JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
