@@ -8,10 +8,12 @@ from tabulate import tabulate
 
 
 def die(msg, status=1):
-    # Surface the error in three places:
-    # 1) stderr (for logs),
-    # 2) GITHUB_OUTPUT as `error_message` so workflows can read it as an output,
-    # 3) step summary for quick visibility in the job UI.
+    # Surface the error in multiple places:
+    # 1) GitHub Actions error annotation (visible in workflow UI)
+    # 2) stderr (for logs)
+    # 3) GITHUB_OUTPUT as `error_message` so workflows can read it as an output
+    # 4) step summary for quick visibility in the job UI
+    print(f"::error::{msg}", file=sys.stdout)
     print(f"ERROR: {msg}", file=sys.stderr)
     try:
         write_output("error_message", str(msg))
@@ -159,6 +161,79 @@ def jira_get_field_metadata(base, email, token, field_id):
     return field_id
 
 
+def validate_upsert_prerequisites(
+    base,
+    email,
+    token,
+    jira_key,
+    upsert_permission_field_id,
+    blocked_statuses,
+    issuetype,
+):
+    """
+    Validate all prerequisites for upsert operation.
+    Returns a dict with validation results and details.
+    """
+    validation_result = {"valid": True, "errors": [], "warnings": [], "details": {}}
+
+    # Get the issue
+    issue = jira_get_issue(base, email, token, jira_key, upsert_permission_field_id)
+    fields = issue.get("fields", {})
+
+    # Get basic fields
+    issuetype_name = (fields.get("issuetype") or {}).get("name", "")
+    issue_summary = (fields.get("summary") or "").strip()
+    current_status = (fields.get("status") or {}).get("name", "")
+
+    validation_result["details"]["issue_type"] = issuetype_name
+    validation_result["details"]["issue_summary"] = issue_summary
+    validation_result["details"]["current_status"] = current_status
+
+    # Validate issue type
+    if issuetype_name != issuetype:
+        validation_result["valid"] = False
+        validation_result["errors"].append(
+            f"Issue {jira_key} is not of type {issuetype} (current: {issuetype_name})"
+        )
+
+    # Check upsert permission field if provided
+    if upsert_permission_field_id:
+        field_name = jira_get_field_metadata(
+            base, email, token, upsert_permission_field_id
+        )
+        validation_result["details"]["permission_field_name"] = field_name
+
+        permission_field_value = fields.get(upsert_permission_field_id)
+        if permission_field_value is None:
+            validation_result["valid"] = False
+            validation_result["errors"].append(
+                f"Upsert permission field '{field_name}' ({upsert_permission_field_id}) is not accessible or does not exist"
+            )
+        else:
+            if isinstance(permission_field_value, dict):
+                field_value = permission_field_value.get("value", "")
+            else:
+                field_value = str(permission_field_value)
+
+            validation_result["details"]["permission_field_value"] = field_value
+
+            if field_value.strip().lower() != "allowed":
+                validation_result["valid"] = False
+                validation_result["errors"].append(
+                    f"Upsert permission field '{field_name}' is not set to 'Allowed' (current value: '{field_value}')"
+                )
+
+    # Check ticket status
+    if blocked_statuses:
+        if current_status.upper() in [s.upper() for s in blocked_statuses]:
+            validation_result["valid"] = False
+            validation_result["errors"].append(
+                f"Ticket is in '{current_status}' status. Blocked statuses: {', '.join(blocked_statuses)}"
+            )
+
+    return validation_result
+
+
 def jira_search_issues(base, email, token, jql, fields=None):
     """Search for Jira issues using JQL."""
     if fields is None:
@@ -182,9 +257,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument(
         "--command",
-        choices=["upsert", "lookup", "get-state"],
+        choices=["upsert", "lookup", "get-state", "validate-upsert-prereqs"],
         required=True,
-        help="Command to execute: 'upsert' to add/update component in specific ticket, 'lookup' to search for component in project, 'get-state' to retrieve ticket status",
+        help="Command to execute: 'upsert' to add/update component, 'lookup' to search for component, 'get-state' to retrieve ticket status, 'validate-upsert-prereqs' to check upsert prerequisites",
     )
 
     # Common parameters
@@ -250,6 +325,9 @@ def main():
     elif args.command == "get-state":
         if not args.jira_key:
             die("Get-state command requires --jira-key argument")
+    elif args.command == "validate-upsert-prereqs":
+        if not args.jira_key:
+            die("Validate-upsert-prereqs command requires --jira-key argument")
 
     base = os.getenv("JIRA_BASE_URL")
     email = os.getenv("JIRA_EMAIL") or "dean.chin@altimetrik.com"
@@ -293,6 +371,62 @@ def main():
 
         append_summary("\n".join(summary_parts))
         print("\n".join(summary_parts))
+
+        return
+
+    # Handle validate-upsert-prereqs command
+    if args.command == "validate-upsert-prereqs":
+        # Run validation checks
+        validation = validate_upsert_prerequisites(
+            base,
+            email,
+            token,
+            args.jira_key,
+            args.upsert_permission_field_id,
+            args.blocked_statuses,
+            args.issuetype,
+        )
+
+        # Write outputs
+        write_output("validation_passed", str(validation["valid"]).lower())
+        write_output("ticket_status", validation["details"].get("current_status", ""))
+        write_output("ticket_key", args.jira_key)
+
+        # Generate summary
+        summary_parts = [
+            f"### Validation Results: **{args.jira_key}**",
+            f"- **{'✅ Validation Passed' if validation['valid'] else '❌ Validation Failed'}**",
+        ]
+
+        if validation["details"].get("issue_summary"):
+            summary_parts.append(f"- Summary: {validation['details']['issue_summary']}")
+        summary_parts.append(
+            f"- Type: {validation['details'].get('issue_type', 'Unknown')}"
+        )
+        summary_parts.append(
+            f"- Status: {validation['details'].get('current_status', 'Unknown')}"
+        )
+
+        if validation["details"].get("permission_field_name"):
+            summary_parts.append(
+                f"- Permission Field: {validation['details']['permission_field_name']}"
+            )
+            summary_parts.append(
+                f"- Permission Value: {validation['details'].get('permission_field_value', 'Unknown')}"
+            )
+
+        if validation["errors"]:
+            summary_parts.append("\n**❌ Validation Errors:**")
+            for error in validation["errors"]:
+                summary_parts.append(f"- {error}")
+
+        append_summary("\n".join(summary_parts))
+        print("\n".join(summary_parts))
+
+        # Fail the workflow if validation didn't pass
+        if not validation["valid"]:
+            error_msg = "Validation failed: " + "; ".join(validation["errors"])
+            die(error_msg)
 
         return
 
@@ -451,7 +585,23 @@ def main():
         write_output("lookup_result", "success")
         return
 
-    # Original upsert mode logic
+    # Upsert mode logic - reuse validation function
+    validation = validate_upsert_prerequisites(
+        base,
+        email,
+        token,
+        args.jira_key,
+        args.upsert_permission_field_id,
+        args.blocked_statuses,
+        args.issuetype,
+    )
+
+    # Fail early if validation doesn't pass (same checks as validate command)
+    if not validation["valid"]:
+        error_msg = "Upsert validation failed: " + "; ".join(validation["errors"])
+        die(error_msg)
+
+    # Get issue details for upsert processing
     issue = jira_get_issue(
         base, email, token, args.jira_key, args.upsert_permission_field_id
     )

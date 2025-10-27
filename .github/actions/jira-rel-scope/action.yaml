@@ -2,7 +2,7 @@ name: "Jira REL-SCOPE checker"
 description: "Validate Jira key, type=REL-SCOPE, parse ADF description table, optional search by column/value, and print a nice table. Supports upsert, lookup, and get-state commands."
 inputs:
   command:
-    description: "Command to execute: 'upsert' to add/update component in specific ticket, 'lookup' to search for component in project, 'get-state' to retrieve ticket status"
+    description: "Command to execute: 'upsert' to add/update component, 'lookup' to search for component, 'get-state' to retrieve ticket status, 'validate-upsert-prereqs' to check upsert prerequisites"
     required: true
   component:
     description: "Component name to add/update or search for (required for upsert and lookup commands)"
@@ -47,6 +47,8 @@ outputs:
     value: ${{ steps.run.outputs.ticket_key }}
   ticket_summary:
     value: ${{ steps.run.outputs.ticket_summary }}
+  validation_passed:
+    value: ${{ steps.run.outputs.validation_passed }}
   status_allows_upsert:
     value: ${{ steps.run.outputs.status_allows_upsert }}
   has_description:

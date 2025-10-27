@@ -6,6 +6,8 @@ This composite action supports two modes for working with Jira REL-SCOPE tickets
 
 1. **Upsert mode**: Validates a Jira issue is type `REL-SCOPE`, parses the ADF description table, and can add/update a row for a Component/Branch.
 2. **Lookup mode**: Searches for REL-SCOPE tickets in a specific project and state, then validates if a component exists with the correct release branch.
+3. **Validate-Upsert-Prereqs mode**: Checks all prerequisites for upsert operations without performing the upsert. Useful for early validation before branch creation.
+4. **Get-State mode**: Retrieves the current status of a Jira ticket for workflow logic.
 
 ## Commands
 
@@ -72,6 +74,38 @@ Adds or updates a component in a specific Jira ticket.
     JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
     JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
     JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+```
+
+### Validate-Upsert-Prereqs Command
+
+Checks all prerequisites for upsert operations without performing the actual upsert. Use this before creating branches to ensure the upsert will succeed.
+
+**Inputs:**
+
+- `command`: `"validate-upsert-prereqs"`
+- `jira_key` (required): Jira issue key (e.g., `REL-1234`).
+- `issuetype` (optional): Jira issue type to validate (default: `REL-SCOPE`).
+- `upsert_permission_field_id` (optional): Custom field ID that controls whether component upserting is allowed (default: `customfield_15850`). Field name will be fetched automatically from Jira.
+- `blocked_statuses` (optional): JIRA statuses that should block upsert operations (default: `APPROVED CLOSED`).
+
+**Example:**
+
+```yaml
+- name: Validate upsert prerequisites
+  id: validate
+  uses: ./.github/actions/jira-rel-scope
+  with:
+    command: validate-upsert-prereqs
+    jira_key: ${{ inputs.jira_key }}
+  env:
+    JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+    JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+    JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+
+- name: Create branch only if validation passed
+  if: steps.validate.outputs.validation_passed == 'true'
+  run: |
+    git checkout -b feature/my-branch
 ```
 
 ### Lookup Command
