@@ -182,14 +182,16 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument(
         "--command",
-        choices=["upsert", "lookup"],
+        choices=["upsert", "lookup", "get-state"],
         required=True,
-        help="Command to execute: 'upsert' to add/update component in specific ticket, 'lookup' to search for component in project",
+        help="Command to execute: 'upsert' to add/update component in specific ticket, 'lookup' to search for component in project, 'get-state' to retrieve ticket status",
     )
 
     # Common parameters
     ap.add_argument(
-        "--component", required=True, help="Component name to add/update or search for"
+        "--component",
+        required=False,
+        help="Component name to add/update or search for (required for upsert and lookup commands)",
     )
     ap.add_argument(
         "--issuetype",
@@ -231,13 +233,23 @@ def main():
 
     # Validate arguments based on command
     if args.command == "upsert":
-        if not args.jira_key or not args.branch_name:
-            die("Upsert command requires --jira-key and --branch-name arguments")
-    elif args.command == "lookup":
-        if not args.project or not args.state or not args.release_branch:
+        if not args.jira_key or not args.branch_name or not args.component:
             die(
-                "Lookup command requires --project, --state, and --release-branch arguments"
+                "Upsert command requires --jira-key, --branch-name, and --component arguments"
             )
+    elif args.command == "lookup":
+        if (
+            not args.project
+            or not args.state
+            or not args.release_branch
+            or not args.component
+        ):
+            die(
+                "Lookup command requires --project, --state, --release-branch, and --component arguments"
+            )
+    elif args.command == "get-state":
+        if not args.jira_key:
+            die("Get-state command requires --jira-key argument")
 
     base = os.getenv("JIRA_BASE_URL")
     email = os.getenv("JIRA_EMAIL") or "dean.chin@altimetrik.com"
@@ -257,6 +269,32 @@ def main():
             + ", ".join(missing)
             + ".\nProvide these as repository or organization secrets and pass them to the workflow (example in README)."
         )
+
+    # Handle get-state command
+    if args.command == "get-state":
+        # Fetch the ticket and return its status
+        issue = jira_get_issue(
+            base, email, token, args.jira_key, args.upsert_permission_field_id
+        )
+        fields = issue.get("fields", {})
+        current_status = (fields.get("status") or {}).get("name", "")
+        issue_summary = (fields.get("summary") or "").strip()
+
+        # Write outputs for workflow consumption
+        write_output("ticket_status", current_status)
+        write_output("ticket_key", args.jira_key)
+        write_output("ticket_summary", issue_summary)
+
+        # Generate summary
+        summary_parts = [
+            f"### Get State: **{args.jira_key}**{(' — ' + issue_summary) if issue_summary else ''}",
+            f"- Current status: **{current_status}**",
+        ]
+
+        append_summary("\n".join(summary_parts))
+        print("\n".join(summary_parts))
+
+        return
 
     # Handle lookup command
     if args.command == "lookup":
