@@ -48,9 +48,9 @@ def test_error_scenarios():
         error_msg += f"\n\n**Expected:** `release/v1.0`"
         error_msg += f"\n**Actual:** `release/v2.0`"
         error_msg += f"\n\n**Component row details:**\n"
-        error_msg += "| Order | Component | Branch Name | Change Request | External Dependency |\n"
-        error_msg += "|-------|-----------|-------------|----------------|---------------------|\n"
-        error_msg += "| 1 | test-component | release/v2.0 | | |"
+        error_msg += "| Order | Component | Branch Name | Change Request | External Dependency | Future | Active | Staging | Prod |\n"
+        error_msg += "|-------|-----------|-------------|----------------|---------------------|--------|--------|---------|------|\n"
+        error_msg += "| 1 | test-component | release/v2.0 | | | | | | |"
         die(error_msg)
     except SystemExit:
         print("✓ Correctly exits with error for wrong branch")

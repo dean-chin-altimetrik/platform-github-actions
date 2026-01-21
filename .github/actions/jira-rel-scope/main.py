@@ -242,7 +242,7 @@ def validate_upsert_prerequisites(
             walk_adf_tables(desc, tables)
             if tables:
                 headers, rows = adf_table_to_rows(tables[0])
-        
+
         # Search for component in the table
         comp_idx = 1  # Component is column index 1
         for r in rows:
@@ -732,6 +732,10 @@ def main():
             "Branch Name",
             "Change Request",
             "External Dependency",
+            "Future",
+            "Active",
+            "Staging",
+            "Prod",
         ]
 
         # If no table exists, create one with expected headers
@@ -740,18 +744,32 @@ def main():
             rows = []
             has_table = True
 
-        # Validate headers exactly (case-insensitive comparison of normalized names)
+        # Validate headers (case-insensitive comparison of normalized names)
+        # Allow existing headers to be a prefix of expected headers (for backward compatibility)
         norm_hdrs = [h.strip().lower() for h in headers]
         norm_expected = [h.strip().lower() for h in expected_headers]
         if norm_hdrs != norm_expected:
-            # Fail and provide expected header information
-            msg = (
-                "Table headers do not match expected schema. Expected headers: "
-                + ", ".join(expected_headers)
-            )
-            write_output("error_message", msg)
-            append_summary(f"**ERROR:** {msg}")
-            die(msg)
+            # Check if existing headers are a prefix of expected headers
+            if (
+                len(norm_hdrs) <= len(norm_expected)
+                and norm_hdrs == norm_expected[: len(norm_hdrs)]
+            ):
+                # Existing headers are a prefix - update headers and pad rows
+                headers = expected_headers.copy()
+                # Pad all existing rows to match expected column count
+                expected_col_count = len(expected_headers)
+                for r in rows:
+                    while len(r) < expected_col_count:
+                        r.append("")
+            else:
+                # Headers don't match - fail and provide expected header information
+                msg = (
+                    "Table headers do not match expected schema. Expected headers: "
+                    + ", ".join(expected_headers)
+                )
+                write_output("error_message", msg)
+                append_summary(f"**ERROR:** {msg}")
+                die(msg)
 
         # Parse upsert values: Component, Branch Name, Change Request, External Dependency
         parts = [p.strip() for p in upsert_raw.split(",")]
@@ -795,7 +813,17 @@ def main():
             except Exception:
                 max_order = len(rows) - 1
             new_order = max_order + 1 if max_order >= 0 else 0
-            new_row = [str(new_order), comp, branch, change_req, ext_dep]
+            new_row = [
+                str(new_order),
+                comp,
+                branch,
+                change_req,
+                ext_dep,
+                "",
+                "",
+                "",
+                "",
+            ]
             rows.append(new_row)
 
         # Prepare human-friendly upsert report and append to upsert_summary
